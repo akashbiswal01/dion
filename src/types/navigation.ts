@@ -40,23 +40,32 @@ export type RootStackParamList = {
     secondApplicant?: ApplicantData;
   };
 
-  BookingSummary: {
-    flat: FlatData;
-    applicant: ApplicantData;
-    secondApplicant?: ApplicantData;
-    paymentPlan: string;
-  };
+  BookingSummary:
+    | {
+        flat?: FlatData;
+        applicant?: ApplicantData;
+        secondApplicant?: ApplicantData;
+        paymentPlan?: string;
+        applicationId?: number;
+        applicationNumber?: string;
+      }
+    | undefined;
 
   BookingAmount: {
     flat: FlatData;
     applicant: ApplicantData;
     secondApplicant?: ApplicantData;
-    paymentPlan: string;
+    paymentPlan?: string;
+    applicationId?: number;
+    applicationNumber?: string;
   };
 
   ApplicationSubmitted: {
     applicationNumber: string;
     flatNumber: string;
+    applicationId?: number;
+    pdfUrl?: string;
+    bookingAmount?: number;
   };
 
   MyBooking: undefined;
@@ -76,6 +85,7 @@ export interface FlatData {
   id: string;
   flatNumber: string;
   tower: string;
+  block?: string;
   floor: number;
   type: string;
   carpetArea: number;
@@ -92,7 +102,10 @@ export interface ApplicantData {
   lastName: string;
   fatherGuardianName: string;
   dob: string;
+  age?: number | string;
   mobile: string;
+  officeNo?: string;
+  resNo?: string;
   email: string;
   address: string;
   city: string;
@@ -101,6 +114,7 @@ export interface ApplicantData {
   nationality: string;
   residentialStatus: string;
   panNumber: string;
+  ward?: string;
 
   // Optional payment details
   paymentPlan?: string;

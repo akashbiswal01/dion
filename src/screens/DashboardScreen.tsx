@@ -9,6 +9,7 @@ import {
   Alert,
 } from "react-native";
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiClient, getBaseUrl, isAxiosError } from "../api/client";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
@@ -50,62 +51,45 @@ const DashboardScreen = ({ navigation }: Props) => {
     try {
       setLoading(true);
 
-      console.log("=================================");
-      console.log("GET USER NAME REQUEST");
-      console.log("URL:", `${getBaseUrl()}/api/users`);
-      console.log("=================================");
+      // 1. Read locally stored user data first (from login or signup)
+      try {
+        const storedUserData = await AsyncStorage.getItem("userData");
+        if (storedUserData) {
+          const user = JSON.parse(storedUserData);
+          const name =
+            user?.name ||
+            user?.firstName ||
+            user?.user?.name ||
+            user?.user?.firstName;
+          if (name) {
+            setUserName(name);
+          }
+        }
+      } catch (storageErr) {
+        console.log("Local storage read error:", storageErr);
+      }
 
-      const response = await apiClient.get<UsersResponse>("/api/users", {
-        timeout: 15000,
-      });
+      // 2. Try fetching the latest user info from the API if available
+      try {
+        const response = await apiClient.get<UsersResponse>("/api/users", {
+          timeout: 4000,
+        });
 
-      console.log("=================================");
-      console.log("GET USER NAME RESPONSE");
-      console.log(JSON.stringify(response.data, null, 2));
-      console.log("=================================");
-
-      if (
-        response.data?.success &&
-        response.data?.data?.items?.length > 0
-      ) {
-        const user = response.data.data.items[0];
-
-        setUserName(user.name || "User");
-      } else {
-        setUserName("User");
-
-        Alert.alert(
-          "Error",
-          response.data?.message || "User not found"
-        );
+        if (
+          response.data?.success &&
+          response.data?.data?.items?.length > 0
+        ) {
+          const user = response.data.data.items[0];
+          if (user?.name) {
+            setUserName(user.name);
+          }
+        }
+      } catch (apiErr) {
+        // Backend offline or unreachable: silently fall back to local username without popup
+        console.log("Dashboard user API unreachable, using local name.");
       }
     } catch (error: any) {
-      console.log("=================================");
-      console.log("GET USER NAME ERROR");
-      console.log(error);
-      console.log("=================================");
-
-      if (isAxiosError(error)) {
-        console.log("Status:", error.response?.status);
-
-        console.log(
-          "Response:",
-          JSON.stringify(error.response?.data, null, 2)
-        );
-
-        Alert.alert(
-          "Error",
-          error.response?.data?.message ||
-            "Unable to load user"
-        );
-      } else {
-        Alert.alert(
-          "Error",
-          error?.message || "Something went wrong"
-        );
-      }
-
-      setUserName("User");
+      console.log("Error loading dashboard user:", error);
     } finally {
       setLoading(false);
     }

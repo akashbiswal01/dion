@@ -54,61 +54,37 @@ const ProfileScreen = ({ navigation }: Props) => {
     try {
       setLoading(true);
 
-      console.log("=================================");
-      console.log("PROFILE API REQUEST");
-      console.log("URL:", `${getBaseUrl()}/api/users`);
-      console.log("=================================");
+      // 1. Read local storage first
+      try {
+        const storedUserData = await AsyncStorage.getItem("userData");
+        if (storedUserData) {
+          const user = JSON.parse(storedUserData);
+          if (user) {
+            setProfile(user);
+          }
+        }
+      } catch (storageErr) {
+        console.log("Local storage read error in profile:", storageErr);
+      }
 
-      const response = await apiClient.get<UsersResponse>("/api/users", {
-        timeout: 15000,
-      });
+      // 2. Try fetching latest profile from API
+      try {
+        const response = await apiClient.get<UsersResponse>("/api/users", {
+          timeout: 4000,
+        });
 
-      console.log("=================================");
-      console.log("PROFILE API RESPONSE");
-      console.log(JSON.stringify(response.data, null, 2));
-      console.log("=================================");
-
-      if (
-        response.data?.success &&
-        response.data?.data?.items?.length > 0
-      ) {
-        // Taking the first user from the API response
-        const user = response.data.data.items[0];
-
-        setProfile(user);
-      } else {
-        setProfile(null);
-
-        Alert.alert(
-          "Error",
-          response.data?.message || "User not found"
-        );
+        if (
+          response.data?.success &&
+          response.data?.data?.items?.length > 0
+        ) {
+          const user = response.data.data.items[0];
+          setProfile(user);
+        }
+      } catch (apiErr) {
+        console.log("Profile API unreachable, using local profile.");
       }
     } catch (error: any) {
-      console.log("=================================");
-      console.log("PROFILE API ERROR");
-      console.log(error);
-      console.log("=================================");
-
-      if (isAxiosError(error)) {
-        console.log("Status:", error.response?.status);
-
-        console.log(
-          "Response:",
-          JSON.stringify(error.response?.data, null, 2)
-        );
-
-        Alert.alert(
-          "Error",
-          error.response?.data?.message ||
-            "Unable to load profile"
-        );
-      } else {
-        Alert.alert(
-          "Error",
-          error?.message || "Something went wrong"
-        );
-      }
+      console.log("Error loading profile:", error);
     } finally {
       setLoading(false);
     }
@@ -265,7 +241,7 @@ const ProfileScreen = ({ navigation }: Props) => {
             style={styles.menuItem}
             activeOpacity={0.7}
             onPress={() =>
-              navigation.navigate("MyBooking")
+              navigation.navigate("BookingSummary")
             }
           >
             <View

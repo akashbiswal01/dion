@@ -31,6 +31,38 @@ const PaymentPlanScreen = ({
       "Installment Plan"
     );
 
+  const [selectedMilestones, setSelectedMilestones] = useState<
+    Record<string, boolean>
+  >({});
+
+  const toggleMilestone = (name: string) => {
+    setSelectedMilestones((prev) => ({
+      ...prev,
+      [name]: !prev[name],
+    }));
+  };
+
+  const scheduleList = [
+    ["On Booking", "5%"],
+    ["Agreement For Sale", "10%"],
+    ["Foundation / Raft", "5%"],
+    ["Basement Roof Slab", "5%"],
+    ["Stilt Roof Slab", "5%"],
+    ["1st Floor Roof Slab", "5%"],
+    ["3rd Floor Roof Slab", "5%"],
+    ["6th Floor Roof Slab", "5%"],
+    ["9th Floor Roof Slab", "5%"],
+    ["12th Floor Roof Slab", "5%"],
+    ["15th Floor Roof Slab", "5%"],
+    ["18th Floor Roof Slab", "5%"],
+    ["21st Floor Roof Slab", "5%"],
+    ["24th Floor Roof Slab", "5%"],
+    ["27th Floor Roof Slab", "5%"],
+    ["Bricks Work", "10%"],
+    ["Flooring", "5%"],
+    ["Possession", "5%"],
+  ];
+
   return (
     <ScrollView style={styles.container}>
 
@@ -90,38 +122,39 @@ const PaymentPlanScreen = ({
         Payment Schedule
       </Text>
 
-      {[
-        ["On Booking", "5%"],
-        ["Agreement For Sale", "10%"],
-        ["Foundation / Raft", "5%"],
-        ["Basement Roof Slab", "5%"],
-        ["Stilt Roof Slab", "5%"],
-        ["1st Floor Roof Slab", "5%"],
-        ["3rd Floor Roof Slab", "5%"],
-        ["6th Floor Roof Slab", "5%"],
-        ["9th Floor Roof Slab", "5%"],
-        ["12th Floor Roof Slab", "5%"],
-        ["15th Floor Roof Slab", "5%"],
-        ["18th Floor Roof Slab", "5%"],
-        ["21st Floor Roof Slab", "5%"],
-        ["24th Floor Roof Slab", "5%"],
-        ["27th Floor Roof Slab", "5%"],
-        ["Bricks Work", "10%"],
-        ["Flooring", "5%"],
-        ["Possession", "5%"],
-      ].map(([name, percentage]) => (
+      {scheduleList.map(([name, percentage]) => {
+        const isSelected = !!selectedMilestones[name];
 
-        <View style={styles.schedule} key={name}>
-          <Text style={styles.scheduleName}>
-            {name}
-          </Text>
+        return (
+          <TouchableOpacity
+            style={styles.schedule}
+            key={name}
+            activeOpacity={0.7}
+            onPress={() => toggleMilestone(name)}
+          >
+            <Text style={styles.scheduleName}>
+              {name}
+            </Text>
 
-          <Text style={styles.percentage}>
-            {percentage}
-          </Text>
-        </View>
+            <View style={styles.scheduleRight}>
+              <Text style={styles.percentage}>
+                {percentage}
+              </Text>
 
-      ))}
+              <View
+                style={[
+                  styles.checkbox,
+                  isSelected && styles.checkboxSelected,
+                ]}
+              >
+                {isSelected && (
+                  <Text style={styles.checkmark}>✓</Text>
+                )}
+              </View>
+            </View>
+          </TouchableOpacity>
+        );
+      })}
 
       <TouchableOpacity
         style={styles.button}
@@ -208,15 +241,49 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
   },
 
   scheduleName: {
     flex: 1,
+    fontSize: 15,
+    color: "#1F2937",
+    fontWeight: "500",
+  },
+
+  scheduleRight: {
+    flexDirection: "row",
+    alignItems: "center",
   },
 
   percentage: {
     fontWeight: "700",
     color: "#2563EB",
+    fontSize: 15,
+    marginRight: 14,
+  },
+
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: "#9CA3AF",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  checkboxSelected: {
+    backgroundColor: "#2563EB",
+    borderColor: "#2563EB",
+  },
+
+  checkmark: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "bold",
+    lineHeight: 15,
   },
 
   button: {

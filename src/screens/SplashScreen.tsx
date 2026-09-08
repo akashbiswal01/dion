@@ -114,7 +114,7 @@ const SplashScreen = ({ navigation }: Props) => {
     const runStartup = async () => {
       const [destination] = await Promise.all([
         determineDestination(),
-        new Promise((resolve) => setTimeout(() => resolve(null), 3800)),
+        new Promise<void>((resolve) => setTimeout(() => resolve(), 3800)),
       ]);
 
       if (isMounted) {

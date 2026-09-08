@@ -7,24 +7,24 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Linking,
 } from "react-native";
 
-import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { apiClient, getBaseUrl, isAxiosError } from "../../api/client";
+
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
-
-import { RootStackParamList } from "../../types/navigation";
+import {
+  RootStackParamList,
+  FlatData,
+  ApplicantData,
+} from "../../types/navigation";
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
   "BookingSummary"
 >;
-
-// =====================================================
-// API CONFIG
-// =====================================================
-
-const BASE_URL = "http://192.168.1.99:5000";
 
 // =====================================================
 // APPLICATION TYPE
@@ -41,7 +41,7 @@ interface Application {
   applicant1_name: string;
   applicant1_pan: string;
   applicant1_age: number;
-  applicant1_dob: string;
+  applicant1_dob: string | null;
   applicant1_guardian_name: string;
   applicant1_address: string;
   applicant1_city: string;
@@ -54,21 +54,21 @@ interface Application {
   applicant1_nationality: string;
   applicant1_ward: string;
 
-  applicant2_name?: string;
-  applicant2_pan?: string;
-  applicant2_age?: number;
-  applicant2_dob?: string;
-  applicant2_guardian_name?: string;
-  applicant2_address?: string;
-  applicant2_city?: string;
-  applicant2_pin_code?: string;
-  applicant2_office_no?: string;
-  applicant2_res_no?: string;
-  applicant2_mobile_no?: string;
-  applicant2_email?: string;
-  applicant2_residential_status?: string;
-  applicant2_nationality?: string;
-  applicant2_ward?: string;
+  applicant2_name: string;
+  applicant2_pan: string;
+  applicant2_age: number;
+  applicant2_dob: string | null;
+  applicant2_guardian_name: string;
+  applicant2_address: string;
+  applicant2_city: string;
+  applicant2_pin_code: string;
+  applicant2_office_no: string;
+  applicant2_res_no: string;
+  applicant2_mobile_no: string;
+  applicant2_email: string;
+  applicant2_residential_status: string;
+  applicant2_nationality: string;
+  applicant2_ward: string;
 
   block: string;
   tower: string;
@@ -86,10 +86,10 @@ interface Application {
   booking_amount: string | number;
   payment_method: string;
   instrument_number: string;
-  payment_date: string;
+  payment_date: string | null;
 
   mr_number: string;
-  mr_date: string;
+  mr_date: string | null;
 
   bank_name: string;
   payable_at: string;
@@ -119,7 +119,6 @@ interface Application {
 interface ApplicationsResponse {
   success: boolean;
   message: string;
-
   data: {
     count: number;
     items: Application[];
@@ -139,11 +138,7 @@ const BookingSummaryScreen = ({
     applicant,
     secondApplicant,
     paymentPlan,
-  } = route.params;
-
-  // ===================================================
-  // STATE
-  // ===================================================
+  } = route.params || {};
 
   const [application, setApplication] =
     useState<Application | null>(null);
@@ -152,119 +147,15 @@ const BookingSummaryScreen = ({
     useState(true);
 
   // ===================================================
-  // FETCH APPLICATIONS
-  // ===================================================
-
-  const fetchApplication = async () => {
-    try {
-      setLoading(true);
-
-      const url = `${BASE_URL}/api/applications`;
-
-      console.log("=================================");
-      console.log("BOOKING SUMMARY API REQUEST");
-      console.log("URL:", url);
-      console.log("=================================");
-
-      const response =
-        await axios.get<ApplicationsResponse>(
-          url,
-          {
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-            timeout: 15000,
-          }
-        );
-
-      console.log("=================================");
-      console.log("BOOKING SUMMARY API RESPONSE");
-      console.log(
-        JSON.stringify(
-          response.data,
-          null,
-          2
-        )
-      );
-      console.log("=================================");
-
-      if (
-        response.data?.success &&
-        response.data?.data?.items?.length > 0
-      ) {
-        // For now use the first application
-        const apiApplication =
-          response.data.data.items[0];
-
-        setApplication(
-          apiApplication
-        );
-      } else {
-        setApplication(null);
-
-        console.log(
-          "No applications returned"
-        );
-      }
-    } catch (error: any) {
-      console.log("=================================");
-      console.log("BOOKING SUMMARY API ERROR");
-      console.log(error);
-      console.log("=================================");
-
-      if (axios.isAxiosError(error)) {
-        console.log(
-          "Status:",
-          error.response?.status
-        );
-
-        console.log(
-          "Response:",
-          JSON.stringify(
-            error.response?.data,
-            null,
-            2
-          )
-        );
-
-        Alert.alert(
-          "Error",
-          error.response?.data?.message ||
-            "Unable to load application"
-        );
-      } else {
-        Alert.alert(
-          "Error",
-          error?.message ||
-            "Something went wrong"
-        );
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ===================================================
-  // LOAD API WHEN SCREEN OPENS
-  // ===================================================
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchApplication();
-    }, [])
-  );
-
-  // ===================================================
-  // HELPERS
+  // FORMAT NUMBER
   // ===================================================
 
   const formatNumber = (
-    value: string | number | undefined
-  ) => {
+    value: string | number | null | undefined
+  ): string => {
     if (
-      value === undefined ||
       value === null ||
+      value === undefined ||
       value === ""
     ) {
       return "0";
@@ -281,9 +172,13 @@ const BookingSummaryScreen = ({
     );
   };
 
+  // ===================================================
+  // FORMAT DATE
+  // ===================================================
+
   const formatDate = (
-    value: string | undefined
-  ) => {
+    value: string | null | undefined
+  ): string => {
     if (!value) {
       return "-";
     }
@@ -294,21 +189,283 @@ const BookingSummaryScreen = ({
       return value;
     }
 
-    return date.toLocaleDateString(
-      "en-IN",
-      {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      }
-    );
+    const day = String(
+      date.getDate()
+    ).padStart(2, "0");
+
+    const month = String(
+      date.getMonth() + 1
+    ).padStart(2, "0");
+
+    const year = date.getFullYear();
+
+    return `${day}-${month}-${year}`;
   };
 
   // ===================================================
-  // DATA TO DISPLAY
-  //
-  // API DATA FIRST
-  // ROUTE DATA AS FALLBACK
+  // GET LOGGED-IN USER
+  // ===================================================
+
+  const getLoggedInUserId = async (): Promise<number> => {
+    try {
+      const userData =
+        await AsyncStorage.getItem(
+          "userData"
+        );
+
+      if (!userData) {
+        return 0;
+      }
+
+      const user = JSON.parse(userData);
+
+      return Number(user?.id) || 0;
+    } catch (error) {
+      console.log(
+        "USER DATA ERROR:",
+        error
+      );
+
+      return 0;
+    }
+  };
+
+  // ===================================================
+  // FETCH APPLICATIONS
+  // ===================================================
+
+  const fetchApplication = async () => {
+    try {
+      setLoading(true);
+
+      console.log(
+        "================================="
+      );
+
+      console.log(
+        "BOOKING SUMMARY API REQUEST"
+      );
+
+      console.log(
+        "ENDPOINT:",
+        "/api/applications"
+      );
+
+      console.log(
+        "================================="
+      );
+
+      const response =
+        await apiClient.get<ApplicationsResponse>(
+          "/api/applications"
+        );
+
+      console.log(
+        "================================="
+      );
+
+      console.log(
+        "BOOKING SUMMARY API RESPONSE"
+      );
+
+      console.log(
+        JSON.stringify(
+          response.data,
+          null,
+          2
+        )
+      );
+
+      console.log(
+        "================================="
+      );
+
+      const routeAppId = (route.params as any)?.applicationId;
+      const routeAppNumber = (route.params as any)?.applicationNumber;
+
+      const rawData = response.data?.data;
+      const items: Application[] = Array.isArray(rawData)
+        ? (rawData as Application[])
+        : (Array.isArray((rawData as any)?.items) ? (rawData as any).items : []);
+
+      let currentApplication: Application | undefined;
+
+      // 1. Check if route passed specific application ID
+      if (routeAppId && items.length > 0) {
+        currentApplication = items.find(
+          (item) => Number(item.id) === Number(routeAppId)
+        );
+      }
+
+      // 2. Check if route passed specific application number
+      if (!currentApplication && routeAppNumber && items.length > 0) {
+        currentApplication = items.find(
+          (item) => item.application_number === routeAppNumber
+        );
+      }
+
+      // 3. Check for logged in user's application
+      if (!currentApplication && items.length > 0) {
+        const loggedInUserId = await getLoggedInUserId();
+        if (loggedInUserId) {
+          const userItems = items.filter(
+            (item) => Number(item.user_id) === loggedInUserId
+          );
+          if (userItems.length > 0) {
+            currentApplication = [...userItems].sort(
+              (a, b) => Number(b.id) - Number(a.id)
+            )[0];
+          }
+        }
+      }
+
+      // 4. Fallback to latest item in API
+      if (!currentApplication && items.length > 0) {
+        currentApplication = [...items].sort(
+          (a, b) => Number(b.id) - Number(a.id)
+        )[0];
+      }
+
+      // 5. Fallback to local storage
+      if (!currentApplication) {
+        try {
+          const cachedJson = await AsyncStorage.getItem("@latest_booking_application");
+          if (cachedJson) {
+            const cached = JSON.parse(cachedJson);
+            currentApplication = {
+              id: cached.applicationId || 1,
+              application_number: cached.applicationNumber || "DRT-APP-001",
+              user_id: 1,
+              agent_id: 0,
+              filled_by: 1,
+              applicant1_name: [cached.applicant?.firstName, cached.applicant?.middleName, cached.applicant?.lastName].filter(Boolean).join(" ") || "Applicant",
+              applicant1_pan: cached.applicant?.panNumber || "",
+              applicant1_age: Number(cached.applicant?.age) || 30,
+              applicant1_dob: cached.applicant?.dob || null,
+              applicant1_guardian_name: cached.applicant?.fatherGuardianName || "",
+              applicant1_address: cached.applicant?.address || "",
+              applicant1_city: cached.applicant?.city || "Bhubaneswar",
+              applicant1_pin_code: cached.applicant?.pincode || "751001",
+              applicant1_office_no: "",
+              applicant1_res_no: "",
+              applicant1_mobile_no: cached.applicant?.mobile || "",
+              applicant1_email: cached.applicant?.email || "",
+              applicant1_residential_status: cached.applicant?.residentialStatus || "Resident",
+              applicant1_nationality: cached.applicant?.nationality || "Indian",
+              applicant1_ward: "",
+              applicant2_name: "",
+              applicant2_pan: "",
+              applicant2_age: 0,
+              applicant2_dob: null,
+              applicant2_guardian_name: "",
+              applicant2_address: "",
+              applicant2_city: "",
+              applicant2_pin_code: "",
+              applicant2_office_no: "",
+              applicant2_res_no: "",
+              applicant2_mobile_no: "",
+              applicant2_email: "",
+              applicant2_residential_status: "Resident",
+              applicant2_nationality: "Indian",
+              applicant2_ward: "",
+              block: (cached.flat as any)?.block || cached.flat?.tower || "Block 1",
+              tower: cached.flat?.tower || "Tower A",
+              flat_number: cached.flat?.flatNumber || "101",
+              carpet_area: cached.flat?.carpetArea || 850,
+              built_up_area: cached.flat?.builtUpArea || 1050,
+              super_built_up_area: cached.flat?.superBuiltUpArea || 1250,
+              rate_per_sqft: cached.flat?.ratePerSqft || 6500,
+              payment_plan: cached.paymentPlan || "Down Payment Plan",
+              total_cost: cached.flat?.totalCost || 8125000,
+              payment_source: cached.applicant?.sourceOfPayment || "Own Contribution",
+              booking_amount: cached.bookingAmount || 100000,
+              payment_method: cached.paymentMethod || "Bank Transfer",
+              instrument_number: `TXN-${Date.now().toString().slice(-8)}`,
+              payment_date: new Date().toISOString().split("T")[0],
+              mr_number: "",
+              mr_date: null,
+              bank_name: cached.applicant?.drawnOn || "State Bank of India",
+              payable_at: "Bhubaneswar",
+              is_submitted: 1,
+              is_approved: 0,
+              approved_by: 0,
+              approved_at: null,
+              rejection_reason: null,
+              application_pdf: null,
+              approved_pdf: null,
+              rejected_pdf: null,
+              created_at: cached.submittedAt || new Date().toISOString(),
+              updated_at: cached.submittedAt || new Date().toISOString(),
+              is_deleted: 0,
+            };
+          }
+        } catch (_) {}
+      }
+
+      if (currentApplication) {
+        setApplication(currentApplication);
+      } else {
+        setApplication(null);
+      }
+    } catch (error: any) {
+      console.log(
+        "================================="
+      );
+
+      console.log(
+        "BOOKING SUMMARY API ERROR"
+      );
+
+      console.log(error);
+
+      console.log(
+        "================================="
+      );
+
+      if (isAxiosError(error)) {
+        console.log(
+          "STATUS:",
+          error.response?.status
+        );
+
+        console.log(
+          "RESPONSE:",
+          JSON.stringify(
+            error.response?.data,
+            null,
+            2
+          )
+        );
+
+        Alert.alert(
+          "Error",
+          error.response?.data?.message ||
+            "Unable to load application."
+        );
+      } else {
+        Alert.alert(
+          "Error",
+          error?.message ||
+            "Something went wrong."
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ===================================================
+  // LOAD API
+  // ===================================================
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchApplication();
+    }, [])
+  );
+
+  // ===================================================
+  // FLAT DATA
   // ===================================================
 
   const flatNumber =
@@ -323,7 +480,7 @@ const BookingSummaryScreen = ({
 
   const block =
     application?.block ||
-    (flat as any)?.block ||
+    flat?.block ||
     "-";
 
   const carpetArea =
@@ -376,27 +533,24 @@ const BookingSummaryScreen = ({
     applicant?.email ||
     "-";
 
+  const primaryPan =
+    application?.applicant1_pan ||
+    applicant?.panNumber ||
+    "-";
+
   // ===================================================
   // SECOND APPLICANT
   // ===================================================
 
-  const apiSecondApplicantName =
-    application?.applicant2_name;
-
-  const routeSecondApplicantName =
-    secondApplicant
-      ? [
-          secondApplicant.firstName,
-          secondApplicant.middleName,
-          secondApplicant.lastName,
-        ]
-          .filter(Boolean)
-          .join(" ")
-      : "";
-
   const secondName =
-    apiSecondApplicantName ||
-    routeSecondApplicantName ||
+    application?.applicant2_name ||
+    [
+      secondApplicant?.firstName,
+      secondApplicant?.middleName,
+      secondApplicant?.lastName,
+    ]
+      .filter(Boolean)
+      .join(" ") ||
     "";
 
   const secondMobile =
@@ -409,52 +563,120 @@ const BookingSummaryScreen = ({
     secondApplicant?.email ||
     "-";
 
- // ===================================================
-// PAYMENT
-// ===================================================
+  const secondPan =
+    application?.applicant2_pan ||
+    secondApplicant?.panNumber ||
+    "-";
 
-const finalPaymentPlan =
-  application?.payment_plan ??
-  paymentPlan ??
-  applicant?.paymentPlan ??
-  "-";
-
-const paymentSource =
-  application?.payment_source ??
-  applicant?.sourceOfPayment ??
-  "-";
-
-const bookingAmount =
-  application?.booking_amount ??
-  applicant?.remittanceSum ??
-  0;
-
-const paymentMethod =
-  application?.payment_method ??
-  applicant?.paymentMode ??
-  "-";
-
-const referenceNumber =
-  application?.instrument_number ??
-  applicant?.referenceNo ??
-  "-";
-
-const paymentDate = application?.payment_date
-  ? formatDate(application.payment_date)
-  : applicant?.paymentDate ?? "-";
-
-const bankName =
-  application?.bank_name ??
-  applicant?.drawnOn ??
-  "-";
   // ===================================================
-  // LOADING
+  // PAYMENT
+  // ===================================================
+
+  const finalPaymentPlan =
+    application?.payment_plan ??
+    paymentPlan ??
+    applicant?.paymentPlan ??
+    "-";
+
+  const paymentSource =
+    application?.payment_source ??
+    applicant?.sourceOfPayment ??
+    "-";
+
+  const bookingAmount =
+    application?.booking_amount ??
+    applicant?.remittanceSum ??
+    0;
+
+  const paymentMethod =
+    application?.payment_method ??
+    applicant?.paymentMode ??
+    "-";
+
+  const referenceNumber =
+    application?.instrument_number ??
+    applicant?.referenceNo ??
+    "-";
+
+  const paymentDate =
+    application?.payment_date
+      ? formatDate(
+          application.payment_date
+        )
+      : applicant?.paymentDate ??
+        "-";
+
+  const bankName =
+    application?.bank_name ??
+    applicant?.drawnOn ??
+    "-";
+
+  const payableAt =
+    application?.payable_at ||
+    "-";
+
+  const effectiveFlat: FlatData | undefined =
+    flat ||
+    (application
+      ? {
+          id: String(application.id || "1"),
+          flatNumber: application.flat_number || "A-101",
+          tower: application.tower || "Tower A",
+          block: application.block || "Block 1",
+          floor: 1,
+          type: "Apartment",
+          carpetArea: Number(application.carpet_area) || 0,
+          builtUpArea: Number(application.built_up_area) || 0,
+          superBuiltUpArea: Number(application.super_built_up_area) || 0,
+          ratePerSqft: Number(application.rate_per_sqft) || 0,
+          totalCost: Number(application.total_cost) || 0,
+          status: "AVAILABLE",
+        }
+      : undefined);
+
+  const effectiveApplicant: ApplicantData | undefined =
+    applicant ||
+    (application
+      ? {
+          firstName: application.applicant1_name || "Applicant",
+          lastName: "",
+          fatherGuardianName: application.applicant1_guardian_name || "",
+          dob: application.applicant1_dob || "",
+          age: application.applicant1_age || 30,
+          mobile: application.applicant1_mobile_no || "",
+          officeNo: application.applicant1_office_no || "",
+          resNo: application.applicant1_res_no || "",
+          email: application.applicant1_email || "",
+          address: application.applicant1_address || "",
+          city: application.applicant1_city || "",
+          state: "",
+          pincode: application.applicant1_pin_code || "",
+          nationality: application.applicant1_nationality || "Indian",
+          residentialStatus:
+            application.applicant1_residential_status || "Resident",
+          panNumber: application.applicant1_pan || "",
+          ward: application.applicant1_ward || "",
+          paymentPlan: application.payment_plan || "",
+          sourceOfPayment: application.payment_source || "",
+          totalCost: application.total_cost || 0,
+          remittanceSum: application.booking_amount || 0,
+          paymentMode: application.payment_method || "",
+          referenceNo: application.instrument_number || "",
+          paymentDate: application.payment_date || "",
+          drawnOn: application.bank_name || "",
+        }
+      : undefined);
+
+  // ===================================================
+  // LOADING SCREEN
   // ===================================================
 
   if (loading) {
     return (
       <View
-        style={styles.loadingContainer}
+        style={
+          styles.loadingContainer
+        }
       >
         <ActivityIndicator
           size="large"
@@ -477,14 +699,16 @@ const bankName =
   return (
     <ScrollView
       style={styles.container}
-      showsVerticalScrollIndicator={false}
+      showsVerticalScrollIndicator={
+        false
+      }
       contentContainerStyle={
         styles.contentContainer
       }
     >
-      {/* =================================================
+      {/* ==========================================
           HEADER
-      ================================================= */}
+      ========================================== */}
 
       <View style={styles.header}>
         <Text style={styles.title}>
@@ -506,7 +730,7 @@ const bankName =
                 styles.applicationNumberLabel
               }
             >
-              APPLICATION
+              APPLICATION NUMBER
             </Text>
 
             <Text
@@ -522,31 +746,31 @@ const bankName =
         )}
       </View>
 
-      {/* =================================================
+      {/* ==========================================
           FLAT DETAILS
-      ================================================= */}
+      ========================================== */}
 
       <Section title="Flat Details">
         <Row
           label="Block"
-          value={block}
+          value={String(block)}
         />
 
         <Row
           label="Tower"
-          value={tower}
+          value={String(tower)}
         />
 
         <Row
           label="Flat"
-          value={flatNumber}
+          value={String(flatNumber)}
         />
 
         <Row
           label="Type"
-          value={
+          value={String(
             flat?.type || "-"
-          }
+          )}
         />
 
         <Row
@@ -580,32 +804,46 @@ const bankName =
         />
       </Section>
 
-      {/* =================================================
+      {/* ==========================================
           PRIMARY APPLICANT
-      ================================================= */}
+      ========================================== */}
 
       <Section title="Primary Applicant">
         <Row
           label="Name"
-          value={primaryName}
+          value={String(
+            primaryName
+          )}
         />
 
         <Row
           label="Mobile"
-          value={primaryMobile}
+          value={String(
+            primaryMobile
+          )}
         />
 
         <Row
           label="Email"
-          value={primaryEmail}
+          value={String(
+            primaryEmail
+          )}
         />
 
-        {application?.applicant1_pan && (
+        <Row
+          label="PAN"
+          value={String(
+            primaryPan
+          )}
+        />
+
+        {application?.applicant1_age !==
+          undefined && (
           <Row
-            label="PAN"
-            value={
-              application.applicant1_pan
-            }
+            label="Age"
+            value={String(
+              application.applicant1_age
+            )}
           />
         )}
 
@@ -613,7 +851,8 @@ const bankName =
           <Row
             label="City"
             value={
-              application.applicant1_city
+              application
+                .applicant1_city
             }
           />
         )}
@@ -637,36 +876,60 @@ const bankName =
             }
           />
         )}
+
+        {application?.applicant1_residential_status && (
+          <Row
+            label="Residential Status"
+            value={
+              application
+                .applicant1_residential_status
+            }
+          />
+        )}
       </Section>
 
-      {/* =================================================
+      {/* ==========================================
           SECOND APPLICANT
-      ================================================= */}
+      ========================================== */}
 
       {secondName ? (
         <Section title="Second Applicant">
           <Row
             label="Name"
-            value={secondName}
+            value={String(
+              secondName
+            )}
           />
 
           <Row
             label="Mobile"
-            value={secondMobile}
+            value={String(
+              secondMobile
+            )}
           />
 
           <Row
             label="Email"
-            value={secondEmail}
+            value={String(
+              secondEmail
+            )}
           />
 
-          {application?.applicant2_pan && (
+          <Row
+            label="PAN"
+            value={String(
+              secondPan
+            )}
+          />
+
+          {application?.applicant2_age !==
+            undefined && (
             <Row
-              label="PAN"
-              value={
+              label="Age"
+              value={String(
                 application
-                  .applicant2_pan
-              }
+                  .applicant2_age
+              )}
             />
           )}
 
@@ -679,52 +942,102 @@ const bankName =
               }
             />
           )}
+
+          {application?.applicant2_pin_code && (
+            <Row
+              label="PIN Code"
+              value={
+                application
+                  .applicant2_pin_code
+              }
+            />
+          )}
         </Section>
       ) : null}
 
-      {/* =================================================
-          PAYMENT PLAN
-      ================================================= */}
-<Section title="Payment Plan">
-  <Row
-    label="Plan"
-    value={String(finalPaymentPlan)}
-  />
+      {/* ==========================================
+          PAYMENT
+      ========================================== */}
 
-  <Row
-    label="Payment Source"
-    value={String(paymentSource)}
-  />
+      <Section title="Payment Plan">
+        <Row
+          label="Plan"
+          value={String(
+            finalPaymentPlan
+          )}
+        />
 
-  <Row
-    label="Booking Amount"
-    value={`₹${formatNumber(bookingAmount)}`}
-  />
+        <Row
+          label="Payment Source"
+          value={String(
+            paymentSource
+          )}
+        />
 
-  <Row
-    label="Payment Method"
-    value={String(paymentMethod)}
-  />
+        <Row
+          label="Booking Amount"
+          value={`₹${formatNumber(
+            bookingAmount
+          )}`}
+        />
 
-  <Row
-    label="Reference Number"
-    value={String(referenceNumber)}
-  />
+        <Row
+          label="Payment Method"
+          value={String(
+            paymentMethod
+          )}
+        />
 
-  <Row
-    label="Payment Date"
-    value={String(paymentDate)}
-  />
+        <Row
+          label="Reference Number"
+          value={String(
+            referenceNumber
+          )}
+        />
 
-  <Row
-    label="Bank Name"
-    value={String(bankName)}
-  />
-</Section>
+        <Row
+          label="Payment Date"
+          value={String(
+            paymentDate
+          )}
+        />
 
-      {/* =================================================
+        <Row
+          label="Bank Name"
+          value={String(
+            bankName
+          )}
+        />
+
+        <Row
+          label="Payable At"
+          value={String(
+            payableAt
+          )}
+        />
+
+        {application?.mr_number ? (
+          <Row
+            label="MR Number"
+            value={
+              application.mr_number
+            }
+          />
+        ) : null}
+
+        {application?.mr_date ? (
+          <Row
+            label="MR Date"
+            value={formatDate(
+              application.mr_date
+            )}
+          />
+        ) : null}
+      </Section>
+
+      {/* ==========================================
           APPLICATION STATUS
-      ================================================= */}
+      ========================================== */}
 
       {application && (
         <Section title="Application Status">
@@ -752,42 +1065,64 @@ const bankName =
             <Row
               label="Rejection Reason"
               value={
-                application
-                  .rejection_reason
+                application.rejection_reason
               }
             />
           )}
         </Section>
       )}
 
-      {/* =================================================
+      {/* ==========================================
           CONTINUE
-      ================================================= */}
+      ========================================== */}
 
-      <TouchableOpacity
-        style={styles.button}
-        activeOpacity={0.8}
-        onPress={() =>
-          navigation.navigate(
-            "BookingAmount",
-            {
-              flat,
-              applicant,
-              secondApplicant,
-              paymentPlan:
-                finalPaymentPlan,
-            }
-          )
-        }
-      >
-        <Text style={styles.buttonText}>
-          CONTINUE TO BOOKING PAYMENT
-        </Text>
-      </TouchableOpacity>
+      {effectiveFlat && effectiveApplicant && (
+        <TouchableOpacity
+          style={styles.button}
+          activeOpacity={0.8}
+          onPress={() =>
+            navigation.navigate(
+              "BookingAmount",
+              {
+                flat: effectiveFlat,
+                applicant: effectiveApplicant,
+                secondApplicant,
+                paymentPlan:
+                  finalPaymentPlan,
+              }
+            )
+          }
+        >
+          <Text style={styles.buttonText}>
+            CONTINUE TO BOOKING PAYMENT
+          </Text>
+        </TouchableOpacity>
+      )}
 
-      {/* =================================================
+      {/* ==========================================
+          DOWNLOAD PDF
+      ========================================== */}
+
+      {application?.id ? (
+        <TouchableOpacity
+          style={styles.pdfDownloadButton}
+          activeOpacity={0.8}
+          onPress={() => {
+            const pdfUrl = `${getBaseUrl()}/api/applications/${application.id}/pdf`;
+            Linking.openURL(pdfUrl).catch(() => {
+              Alert.alert("Application PDF", `PDF Link: ${pdfUrl}`);
+            });
+          }}
+        >
+          <Text style={styles.pdfDownloadButtonText}>
+            📥 DOWNLOAD APPLICATION PDF
+          </Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {/* ==========================================
           REFRESH
-      ================================================= */}
+      ========================================== */}
 
       <TouchableOpacity
         style={
@@ -809,7 +1144,7 @@ const bankName =
 };
 
 // =====================================================
-// SECTION COMPONENT
+// SECTION
 // =====================================================
 
 const Section = ({
@@ -818,24 +1153,20 @@ const Section = ({
 }: {
   title: string;
   children: React.ReactNode;
-}) => {
-  return (
-    <View style={styles.section}>
-      <Text
-        style={styles.sectionTitle}
-      >
-        {title}
-      </Text>
+}) => (
+  <View style={styles.section}>
+    <Text
+      style={styles.sectionTitle}
+    >
+      {title}
+    </Text>
 
-      <View>
-        {children}
-      </View>
-    </View>
-  );
-};
+    {children}
+  </View>
+);
 
 // =====================================================
-// ROW COMPONENT
+// ROW
 // =====================================================
 
 const Row = ({
@@ -846,25 +1177,23 @@ const Row = ({
   label: string;
   value: string;
   highlight?: boolean;
-}) => {
-  return (
-    <View style={styles.row}>
-      <Text style={styles.label}>
-        {label}
-      </Text>
+}) => (
+  <View style={styles.row}>
+    <Text style={styles.label}>
+      {label}
+    </Text>
 
-      <Text
-        style={[
-          styles.value,
-          highlight &&
-            styles.highlightValue,
-        ]}
-      >
-        {value}
-      </Text>
-    </View>
-  );
-};
+    <Text
+      style={[
+        styles.value,
+        highlight &&
+          styles.highlightValue,
+      ]}
+    >
+      {value}
+    </Text>
+  </View>
+);
 
 // =====================================================
 // STYLES
@@ -894,9 +1223,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  // =================================================
   // HEADER
-  // =================================================
 
   header: {
     marginTop: 30,
@@ -932,15 +1259,13 @@ const styles = StyleSheet.create({
   },
 
   applicationNumber: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "800",
     color: "#1D4ED8",
-    marginTop: 2,
+    marginTop: 3,
   },
 
-  // =================================================
   // SECTION
-  // =================================================
 
   section: {
     backgroundColor: "#FFFFFF",
@@ -968,9 +1293,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
-  // =================================================
   // ROW
-  // =================================================
 
   row: {
     flexDirection: "row",
@@ -1000,9 +1323,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
 
-  // =================================================
   // BUTTON
-  // =================================================
 
   button: {
     height: 55,
@@ -1015,14 +1336,12 @@ const styles = StyleSheet.create({
   },
 
   buttonText: {
-    color: "#FFF",
+    color: "#FFFFFF",
     fontWeight: "800",
     fontSize: 13,
   },
 
-  // =================================================
   // REFRESH
-  // =================================================
 
   refreshButton: {
     height: 48,
@@ -1039,6 +1358,27 @@ const styles = StyleSheet.create({
     color: "#2563EB",
     fontWeight: "700",
     fontSize: 13,
+  },
+
+  pdfDownloadButton: {
+    height: 52,
+    backgroundColor: "#16A34A",
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+    shadowColor: "#16A34A",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+
+  pdfDownloadButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 14,
+    letterSpacing: 0.3,
   },
 });
 

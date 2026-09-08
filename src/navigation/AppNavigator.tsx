@@ -19,6 +19,7 @@ import ApplicantDetailsScreen from "../screens/bookings/ApplicantDetailsScreen";
 import SecondApplicantScreen from "../screens/SecondApplicantScreen";
 import PaymentPlanScreen from "../screens/bookings/PaymentPlanScreen";
 import BookingSummaryScreen from "../screens/bookings/BookingSummaryScreen";
+import BookingAmountScreen from "../screens/bookings/BookingAmountScreen";
 import ApplicationSubmittedScreen from "../screens/bookings/ApplicationSubmittedScreen";
 
 import MyBookingScreen from "../screens/booking-status/MyBookingScreen";
@@ -78,7 +79,11 @@ const AppNavigator = () => {
           component={BookingSummaryScreen}
         />
 
-      
+        <Stack.Screen
+          name="BookingAmount"
+          component={BookingAmountScreen}
+        />
+
         <Stack.Screen
           name="ApplicationSubmitted"
           component={ApplicationSubmittedScreen}

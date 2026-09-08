@@ -12,7 +12,11 @@ import {
   Animated,
   Easing,
   StatusBar,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { apiClient, getBaseUrl, isAxiosError } from "../api/client";
 
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../types/navigation";
@@ -20,16 +24,16 @@ import { RootStackParamList } from "../types/navigation";
 type Props = NativeStackScreenProps<RootStackParamList, "Signup">;
 
 // Reusable animated input component for smart focus states & password toggle
-const AnimatedInput = ({ 
-  label, 
-  icon, 
+const AnimatedInput = ({
+  label,
+  icon,
   isPassword,
-  ...props 
-}: { 
-  label: string; 
-  icon: string; 
+  ...props
+}: {
+  label: string;
+  icon: string;
   isPassword?: boolean;
-  [x: string]: any 
+  [x: string]: any
 }) => {
   const [isFocused, setIsFocused] = useState(false);
   const [isSecure, setIsSecure] = useState(true);
@@ -47,19 +51,19 @@ const AnimatedInput = ({
           secureTextEntry={isPassword ? isSecure : props.secureTextEntry}
           {...props}
         />
-        
+
         {/* Render the eye icon only if this is a password field */}
         {isPassword && (
-          <TouchableOpacity 
-            style={styles.eyeButton} 
-            activeOpacity={0.7} 
+          <TouchableOpacity
+            style={styles.eyeButton}
+            activeOpacity={0.7}
             onPress={() => setIsSecure(!isSecure)}
           >
             <Image
               // REPLACE THESE PATHS WITH YOUR ACTUAL IMAGE PATHS
               source={
-                isSecure 
-                  ? require('../../src/assets/images/open_eye.png') 
+                isSecure
+                  ? require('../../src/assets/images/open_eye.png')
                   : require('../../src/assets/images/close-eye.png')
               }
               style={styles.eyeIcon}
@@ -78,6 +82,144 @@ const SignupScreen = ({ navigation }: Props) => {
   const [mobile, setMobile] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSignup = async () => {
+    const identifier = mobile.trim();
+
+    if (!firstName.trim()) {
+      Alert.alert("Sign Up", "Please enter your first name.");
+      return;
+    }
+
+    if (!identifier) {
+      Alert.alert("Sign Up", "Please enter your mobile number.");
+      return;
+    }
+
+    if (!/^[0-9]+$/.test(identifier) || identifier.length !== 10) {
+      Alert.alert(
+        "Invalid Mobile Number",
+        "Please enter a valid 10-digit mobile number."
+      );
+      return;
+    }
+
+    if (!password.trim()) {
+      Alert.alert("Sign Up", "Please enter your password.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ");
+
+      const payload = {
+        name: fullName,
+        email: email.trim(),
+        mobile: identifier,
+        username: identifier,
+        password: password,
+        role: "user",
+        is_active: 1,
+      };
+
+      console.log("=================================");
+      console.log("CREATE USER REQUEST");
+      console.log("URL:", `${getBaseUrl()}/api/users`);
+      console.log("Payload:", JSON.stringify(payload, null, 2));
+      console.log("=================================");
+
+      const response = await apiClient.post("/api/users", payload, {
+        timeout: 15000,
+      });
+
+      console.log("CREATE USER RESPONSE:", response.data);
+
+      const result = response.data;
+
+      if (result.success === false) {
+        Alert.alert(
+          "Registration Failed",
+          result.message || "Failed to create user account."
+        );
+        return;
+      }
+
+      const createdUserId = result.data?.id || Date.now();
+
+      // Auto-login to obtain JWT token
+      let token = `auth_${createdUserId}_${Date.now()}`;
+      try {
+        const loginRes = await apiClient.post(
+          "/api/auth/login",
+          {
+            role: "user",
+            identifier,
+            password,
+          },
+          { timeout: 8000 }
+        );
+        const fetchedToken =
+          loginRes.data?.token ||
+          loginRes.data?.access_token ||
+          loginRes.data?.data?.token;
+        if (fetchedToken) {
+          token = fetchedToken;
+        }
+      } catch (loginErr) {
+        console.log("Auto-login note:", loginErr);
+      }
+
+      const userData = {
+        id: createdUserId,
+        name: fullName,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        username: identifier,
+        mobile: identifier,
+        email: email.trim() || `${identifier}@dion.com`,
+        role: "user",
+      };
+
+      await AsyncStorage.setItem("authToken", token);
+      await AsyncStorage.setItem("userData", JSON.stringify(userData));
+      await AsyncStorage.setItem("loginMobile", identifier);
+      await AsyncStorage.setItem("loginTime", Date.now().toString());
+
+      Alert.alert(
+        "Success",
+        "Account created successfully!",
+        [
+          {
+            text: "Get Started",
+            onPress: () => navigation.replace("Dashboard"),
+          },
+        ]
+      );
+    } catch (error: any) {
+      console.log("CREATE USER ERROR:", error);
+
+      if (isAxiosError(error)) {
+        const errorMsg =
+          error.response?.data?.message ||
+          error.response?.data?.error ||
+          (error.response?.status === 400
+            ? "Mobile number or username already exists."
+            : "Network error. Please check backend connection.");
+
+        Alert.alert("Registration Failed", errorMsg);
+      } else {
+        Alert.alert(
+          "Error",
+          error?.message || "An unexpected error occurred. Please try again."
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -104,20 +246,20 @@ const SignupScreen = ({ navigation }: Props) => {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <StatusBar barStyle="light-content"  />
-      <ScrollView 
+      <StatusBar barStyle="light-content" />
+      <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        
+
         {/* --- DARK HEADER SECTION --- */}
         <View style={styles.header}>
           <View style={styles.circleDecoration} />
-          
+
           <View style={styles.logoWrapper}>
-            <Image 
-              source={require('../../src/assets/images/dion image.jpg')} 
+            <Image
+              source={require('../../src/assets/images/dion image.jpg')}
               style={styles.logoImage}
               resizeMode="contain"
             />
@@ -130,12 +272,12 @@ const SignupScreen = ({ navigation }: Props) => {
         </View>
 
         {/* --- ANIMATED FORM CARD --- */}
-        <Animated.View 
+        <Animated.View
           style={[
-            styles.formCard, 
-            { 
-              opacity: fadeAnim, 
-              transform: [{ translateY: slideAnim }] 
+            styles.formCard,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }]
             }
           ]}
         >
@@ -193,12 +335,19 @@ const SignupScreen = ({ navigation }: Props) => {
           />
 
           <TouchableOpacity
-            style={styles.button}
+            style={[styles.button, loading && styles.buttonDisabled]}
             activeOpacity={0.8}
-            onPress={() => navigation.replace("Dashboard" as any)} 
+            disabled={loading}
+            onPress={handleSignup}
           >
-            <Text style={styles.buttonText}>CREATE ACCOUNT</Text>
-            <Text style={styles.arrowIcon}>→</Text>
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <>
+                <Text style={styles.buttonText}>CREATE ACCOUNT</Text>
+                <Text style={styles.arrowIcon}>→</Text>
+              </>
+            )}
           </TouchableOpacity>
 
           <View style={styles.loginFallback}>
@@ -217,7 +366,7 @@ const SignupScreen = ({ navigation }: Props) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F3F4F6", 
+    backgroundColor: "#F3F4F6",
   },
   scrollContent: {
     flexGrow: 1,
@@ -228,7 +377,7 @@ const styles = StyleSheet.create({
 
   // --- HEADER STYLES ---
   header: {
-    backgroundColor: "#111827", 
+    backgroundColor: "#111827",
     paddingHorizontal: 30,
     paddingTop: 80,
     paddingBottom: 100,
@@ -271,7 +420,7 @@ const styles = StyleSheet.create({
   formCard: {
     backgroundColor: "#FFFFFF",
     marginHorizontal: 20,
-    marginTop: -60, 
+    marginTop: -60,
     borderRadius: 20,
     padding: 24,
     shadowColor: "#000",
@@ -303,7 +452,7 @@ const styles = StyleSheet.create({
   },
   inputWrapperFocused: {
     borderColor: "#2563EB",
-    backgroundColor: "#EFF6FF", 
+    backgroundColor: "#EFF6FF",
   },
   inputIcon: { fontSize: 18, marginRight: 12 },
   input: {
@@ -335,6 +484,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   buttonText: { color: "#FFFFFF", fontWeight: "800", fontSize: 15, letterSpacing: 1 },
   arrowIcon: { color: "#FFFFFF", fontWeight: "800", fontSize: 18, marginLeft: 8 },

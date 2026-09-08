@@ -357,6 +357,9 @@ const FlatListScreen = ({
                 tower:
                   towerName,
 
+                block:
+                  `Block ${block_id || 1}`,
+
                 floor:
                   floor,
 
@@ -364,19 +367,19 @@ const FlatListScreen = ({
                   "Apartment",
 
                 carpetArea:
-                  0,
+                  850,
 
                 builtUpArea:
-                  0,
+                  1050,
 
                 superBuiltUpArea:
-                  0,
+                  1250,
 
                 ratePerSqft:
-                  0,
+                  6500,
 
                 totalCost:
-                  0,
+                  8125000,
 
                 status:
                   isAvailable

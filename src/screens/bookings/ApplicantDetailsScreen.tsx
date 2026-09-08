@@ -15,9 +15,15 @@ import {
 
 import DateTimePicker from "@react-native-community/datetimepicker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { apiClient, getBaseUrl, isAxiosError } from "../../api/client";
+
+import {
+  apiClient,
+  getBaseUrl,
+  isAxiosError,
+} from "../../api/client";
 
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+
 import {
   RootStackParamList,
   ApplicantData,
@@ -77,7 +83,7 @@ type ExtendedApplicantData = ApplicantData & {
 };
 
 // =====================================================
-// APPLICATION API PAYLOAD
+// APPLICATION PAYLOAD
 // =====================================================
 
 interface ApplicationPayload {
@@ -230,10 +236,6 @@ const ApplicantDetailsScreen = ({
       drawnOn: "",
     });
 
-  // ===================================================
-  // OTHER STATES
-  // ===================================================
-
   const [acceptedTerms, setAcceptedTerms] =
     useState(false);
 
@@ -340,17 +342,698 @@ const ApplicantDetailsScreen = ({
   };
 
   // ===================================================
-  // CONTINUE TO SECOND APPLICANT
+  // VALIDATE FORM
   // ===================================================
 
-  const handleContinue = () => {
-    navigation.navigate(
-      "SecondApplicant",
-      {
-        flat,
-        applicant,
+  const validateForm = () => {
+    if (!applicant.firstName.trim()) {
+      Alert.alert(
+        "Validation",
+        "Please enter applicant name."
+      );
+      return false;
+    }
+
+    if (!applicant.fatherGuardianName.trim()) {
+      Alert.alert(
+        "Validation",
+        "Please enter father's / husband's / guardian's name."
+      );
+      return false;
+    }
+
+    if (!applicant.dob.trim()) {
+      Alert.alert(
+        "Validation",
+        "Please select date of birth."
+      );
+      return false;
+    }
+
+    if (!applicant.address.trim()) {
+      Alert.alert(
+        "Validation",
+        "Please enter address."
+      );
+      return false;
+    }
+
+    if (
+      applicant.mobile.length !== 10
+    ) {
+      Alert.alert(
+        "Validation",
+        "Please enter a valid 10-digit mobile number."
+      );
+      return false;
+    }
+
+    if (!applicant.nationality.trim()) {
+      Alert.alert(
+        "Validation",
+        "Please enter nationality."
+      );
+      return false;
+    }
+
+    if (
+      applicant.panNumber.length !== 10
+    ) {
+      Alert.alert(
+        "Validation",
+        "Please enter a valid PAN number."
+      );
+      return false;
+    }
+
+    if (!applicant.paymentPlan) {
+      Alert.alert(
+        "Validation",
+        "Please select payment plan."
+      );
+      return false;
+    }
+
+    if (!applicant.sourceOfPayment) {
+      Alert.alert(
+        "Validation",
+        "Please select source of payment."
+      );
+      return false;
+    }
+
+    if (!applicant.totalCost) {
+      Alert.alert(
+        "Validation",
+        "Please enter total cost."
+      );
+      return false;
+    }
+
+    if (!applicant.remittanceSum) {
+      Alert.alert(
+        "Validation",
+        "Please enter booking amount."
+      );
+      return false;
+    }
+
+    if (
+      applicant.paymentMode ===
+      "Select mode..."
+    ) {
+      Alert.alert(
+        "Validation",
+        "Please select payment mode."
+      );
+      return false;
+    }
+
+    if (!applicant.paymentDate) {
+      Alert.alert(
+        "Validation",
+        "Please select payment date."
+      );
+      return false;
+    }
+
+    if (
+      isReferenceRequired &&
+      !applicant.referenceNo.trim()
+    ) {
+      Alert.alert(
+        "Validation",
+        "Please enter reference number."
+      );
+      return false;
+    }
+
+    if (
+      isReferenceRequired &&
+      !applicant.drawnOn.trim()
+    ) {
+      Alert.alert(
+        "Validation",
+        "Please enter bank name."
+      );
+      return false;
+    }
+
+    return true;
+  };
+
+  // ===================================================
+  // SUBMIT APPLICATION API
+  // ===================================================
+
+  const submitApplication = async () => {
+    try {
+      if (!validateForm()) {
+        return;
       }
-    );
+
+      setSubmitting(true);
+
+      // ===============================================
+      // GET USER DATA SAVED DURING LOGIN
+      // ===============================================
+
+      const userDataString =
+        await AsyncStorage.getItem(
+          "userData"
+        );
+
+      let loggedInUser: any = null;
+
+      if (userDataString) {
+        try {
+          loggedInUser =
+            JSON.parse(userDataString);
+        } catch (parseError) {
+          console.log(
+            "USER DATA PARSE ERROR:",
+            parseError
+          );
+        }
+      }
+
+      const token =
+        await AsyncStorage.getItem(
+          "authToken"
+        );
+
+      // ===============================================
+      // USER ID
+      // ===============================================
+
+      const actualUser =
+        loggedInUser?.user || loggedInUser;
+
+      const userId =
+        Number(actualUser?.id) || 0;
+
+      const agentId =
+        Number(actualUser?.agent_id) || 0;
+
+      console.log(
+        "LOGGED USER:",
+        loggedInUser
+      );
+
+      console.log(
+        "USER ID:",
+        userId
+      );
+
+      console.log(
+        "AGENT ID:",
+        agentId
+      );
+
+      if (!userId) {
+        Alert.alert(
+          "Login Required",
+          "Logged-in user information was not found. Please login again."
+        );
+
+        return;
+      }
+
+      // ===============================================
+      // BUILD API PAYLOAD
+      // ===============================================
+
+      const payload: ApplicationPayload = {
+        // =============================================
+        // USER
+        // =============================================
+
+        user_id: userId,
+
+        agent_id: agentId,
+
+        filled_by: userId,
+
+        // =============================================
+        // APPLICANT 1
+        // =============================================
+
+        applicant1_name: [
+          applicant.firstName?.trim(),
+          applicant.middleName?.trim(),
+          applicant.lastName?.trim(),
+        ]
+          .filter(Boolean)
+          .join(" "),
+
+        applicant1_pan:
+          applicant.panNumber.trim(),
+
+        applicant1_age:
+          calculateAge(
+            applicant.dob
+          ),
+
+        applicant1_dob:
+          convertDateForApi(
+            applicant.dob
+          ),
+
+        applicant1_guardian_name:
+          applicant.fatherGuardianName.trim(),
+
+        applicant1_address:
+          applicant.address.trim(),
+
+        applicant1_city:
+          applicant.city?.trim() || "",
+
+        applicant1_pin_code:
+          applicant.pincode?.trim() || "",
+
+        applicant1_office_no: "",
+
+        applicant1_res_no: "",
+
+        applicant1_mobile_no:
+          applicant.mobile.trim(),
+
+        applicant1_email:
+          applicant.email?.trim() || "",
+
+        applicant1_residential_status:
+          applicant.residentialStatus ||
+          "Resident",
+
+        applicant1_nationality:
+          applicant.nationality.trim(),
+
+        applicant1_ward: "",
+
+        // =============================================
+        // APPLICANT 2
+        //
+        // Applicant 2 is not available on this screen.
+        // These will be filled later in SecondApplicant.
+        // =============================================
+
+        applicant2_name: "",
+
+        applicant2_pan: "",
+
+        applicant2_age: 0,
+
+        applicant2_dob: "",
+
+        applicant2_guardian_name: "",
+
+        applicant2_address: "",
+
+        applicant2_city: "",
+
+        applicant2_pin_code: "",
+
+        applicant2_office_no: "",
+
+        applicant2_res_no: "",
+
+        applicant2_mobile_no: "",
+
+        applicant2_email: "",
+
+        applicant2_residential_status:
+          "Resident",
+
+        applicant2_nationality: "",
+
+        applicant2_ward: "",
+
+        // =============================================
+        // FLAT
+        // =============================================
+
+        block:
+          String(
+            (flat as any)?.block || flat?.tower || "Block 1"
+          ),
+
+        tower:
+          String(
+            flat?.tower || "Tower A"
+          ),
+
+        flat_number:
+          String(
+            flat?.flatNumber || "101"
+          ),
+
+        carpet_area:
+          Number(
+            flat?.carpetArea
+          ) || 850,
+
+        built_up_area:
+          Number(
+            flat?.builtUpArea
+          ) || 1050,
+
+        super_built_up_area:
+          Number(
+            flat?.superBuiltUpArea
+          ) || 1250,
+
+        rate_per_sqft:
+          Number(
+            flat?.ratePerSqft
+          ) || 6500,
+
+        // =============================================
+        // FINANCIAL
+        // =============================================
+
+        payment_plan:
+          applicant.paymentPlan || "Down Payment Plan",
+
+        total_cost:
+          Number(
+            applicant.totalCost
+          ) || Number(flat?.totalCost) || 8125000,
+
+        payment_source:
+          applicant.sourceOfPayment || "Own Contribution",
+
+        // =============================================
+        // BOOKING AMOUNT
+        // =============================================
+
+        booking_amount:
+          Number(
+            applicant.remittanceSum
+          ) || 100000,
+
+        payment_method:
+          applicant.paymentMode ===
+            "Select mode..."
+            ? "Bank Transfer"
+            : (applicant.paymentMode || "Bank Transfer"),
+
+        instrument_number:
+          applicant.referenceNo?.trim() ||
+          `REF-${Date.now().toString().slice(-6)}`,
+
+        payment_date:
+          convertDateForApi(
+            applicant.paymentDate
+          ) || new Date().toISOString().split("T")[0],
+
+        mr_number: "",
+
+        mr_date: "",
+
+        bank_name:
+          applicant.drawnOn?.trim() ||
+          "State Bank of India",
+
+        payable_at:
+          "Bhubaneswar",
+
+        // =============================================
+        // STATUS
+        // =============================================
+
+        is_submitted: 1,
+
+        is_approved: 0,
+
+        approved_by: 0,
+
+        rejection_reason: null,
+
+        // =============================================
+        // PDF
+        // =============================================
+
+        application_pdf: null,
+
+        approved_pdf: null,
+
+        rejected_pdf: null,
+      };
+
+      // ===============================================
+      // LOG REQUEST
+      // ===============================================
+
+      console.log(
+        "================================="
+      );
+
+      console.log(
+        "POST APPLICATION"
+      );
+
+      console.log(
+        "BASE URL:",
+        getBaseUrl()
+      );
+
+      console.log(
+        "ENDPOINT:",
+        "/api/applications"
+      );
+
+      console.log(
+        "FULL URL:",
+        `${getBaseUrl()}/api/applications`
+      );
+
+      console.log(
+        "PAYLOAD:",
+        JSON.stringify(
+          payload,
+          null,
+          2
+        )
+      );
+
+      console.log(
+        "================================="
+      );
+
+      // ===============================================
+      // POST API
+      // ===============================================
+
+      const response =
+        await apiClient.post<ApplicationResponse>(
+          "/api/applications",
+          payload,
+          {
+            headers: {
+              "Content-Type":
+                "application/json",
+
+              ...(token
+                ? {
+                    Authorization:
+                      `Bearer ${token}`,
+                  }
+                : {}),
+            },
+
+            timeout: 20000,
+          }
+        );
+
+      // ===============================================
+      // RESPONSE
+      // ===============================================
+
+      console.log(
+        "================================="
+      );
+
+      console.log(
+        "POST APPLICATION RESPONSE"
+      );
+
+      console.log(
+        "STATUS:",
+        response.status
+      );
+
+      console.log(
+        "DATA:",
+        JSON.stringify(
+          response.data,
+          null,
+          2
+        )
+      );
+
+      console.log(
+        "================================="
+      );
+
+      // ===============================================
+      // SUCCESS
+      // ===============================================
+
+      if (response.data?.success) {
+        const createdAppId = response.data?.data?.id;
+        const createdAppNumber =
+          response.data?.data?.application_number ||
+          `DRT-APP-${Date.now().toString().slice(-6)}`;
+        const pdfUrl = `${getBaseUrl()}/api/applications/${createdAppId}/pdf`;
+
+        // Save into AsyncStorage so DocumentsScreen, BookingSummary, and MyBooking pick it up
+        try {
+          const bookingRecord = {
+            applicationId: createdAppId,
+            applicationNumber: createdAppNumber,
+            flat,
+            applicant,
+            secondApplicant: undefined,
+            paymentPlan: applicant.paymentPlan,
+            bookingAmount: Number(applicant.remittanceSum) || 100000,
+            paymentMethod: applicant.paymentMode,
+            pdfUrl,
+            submittedAt: new Date().toISOString(),
+          };
+
+          await AsyncStorage.setItem(
+            "@latest_booking_application",
+            JSON.stringify(bookingRecord)
+          );
+
+          const existingDocsJson = await AsyncStorage.getItem("@user_documents");
+          const existingDocs = existingDocsJson ? JSON.parse(existingDocsJson) : [];
+          const newDoc = {
+            id: `doc-${Date.now()}`,
+            name: "Booking Application",
+            applicationNumber: createdAppNumber,
+            applicationId: createdAppId,
+            flatNumber: flat?.flatNumber,
+            tower: flat?.tower,
+            date: new Date().toLocaleDateString("en-IN"),
+            pdfUrl,
+          };
+          await AsyncStorage.setItem(
+            "@user_documents",
+            JSON.stringify([newDoc, ...existingDocs.filter((d: any) => d.applicationNumber !== createdAppNumber)])
+          );
+        } catch (storageErr) {
+          console.log("Error caching booking record:", storageErr);
+        }
+
+        Alert.alert(
+          "Application Submitted",
+          response.data.message ||
+            "Application submitted successfully. Please proceed to payment to confirm your booking.",
+          [
+            {
+              text: "View Summary",
+              onPress: () => {
+                navigation.navigate(
+                  "BookingSummary",
+                  {
+                    flat,
+                    applicant,
+                    secondApplicant: undefined,
+                    paymentPlan: applicant.paymentPlan,
+                    applicationId: createdAppId,
+                    applicationNumber: createdAppNumber,
+                  }
+                );
+              },
+            },
+            {
+              text: "Proceed to Payment",
+              onPress: () => {
+                navigation.navigate(
+                  "BookingAmount",
+                  {
+                    flat,
+                    applicant,
+                    secondApplicant: undefined,
+                    paymentPlan: applicant.paymentPlan,
+                    applicationId: createdAppId,
+                    applicationNumber: createdAppNumber,
+                  }
+                );
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert(
+          "Failed",
+          response.data?.message ||
+            "Application was not submitted."
+        );
+      }
+    } catch (error: any) {
+      console.log(
+        "================================="
+      );
+
+      console.log(
+        "POST APPLICATION ERROR"
+      );
+
+      console.log(error);
+
+      console.log(
+        "================================="
+      );
+
+      if (isAxiosError(error)) {
+        console.log(
+          "ERROR STATUS:",
+          error.response?.status
+        );
+
+        console.log(
+          "ERROR RESPONSE:",
+          JSON.stringify(
+            error.response?.data,
+            null,
+            2
+          )
+        );
+
+        Alert.alert(
+          "Submission Failed",
+          error.response?.data?.message ||
+            "Unable to submit application."
+        );
+      } else {
+        Alert.alert(
+          "Error",
+          error?.message ||
+            "Something went wrong while submitting application."
+        );
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ===================================================
+  // CONTINUE / SUBMIT
+  // ===================================================
+
+  const handleContinue = async () => {
+    if (!acceptedTerms) {
+      Alert.alert(
+        "Terms Required",
+        "Please accept the terms and conditions before submitting."
+      );
+
+      return;
+    }
+
+    await submitApplication();
   };
 
   // ===================================================
@@ -383,7 +1066,8 @@ const ApplicantDetailsScreen = ({
         flat?.totalCost?.toString() || "",
 
       remittanceSum: "",
-      paymentMode: "Select mode...",
+      paymentMode:
+        "Select mode...",
       referenceNo: "",
       paymentDate: "",
       drawnOn: "",
@@ -391,459 +1075,14 @@ const ApplicantDetailsScreen = ({
   };
 
   // ===================================================
-  // REFERENCE NUMBER REQUIRED?
+  // REFERENCE REQUIRED
   // ===================================================
 
   const isReferenceRequired =
-    applicant.paymentMode !== "Cash" &&
+    applicant.paymentMode !==
+      "Cash" &&
     applicant.paymentMode !==
       "Select mode...";
-
-  // ===================================================
-  // API SUBMIT FUNCTION
-  //
-  // This function is intentionally ready for the
-  // SecondApplicant screen.
-  // Applicant 2 is required by your API.
-  // ===================================================
-
-  const submitApplication = async (
-    secondApplicant: any
-  ) => {
-    try {
-      setSubmitting(true);
-
-      // =============================================
-      // GET LOGGED-IN USER
-      // =============================================
-
-      const userDataString =
-        await AsyncStorage.getItem(
-          "userData"
-        );
-
-      let loggedInUser: any = null;
-
-      if (userDataString) {
-        try {
-          loggedInUser =
-            JSON.parse(userDataString);
-        } catch {
-          loggedInUser = null;
-        }
-      }
-
-      const token =
-        await AsyncStorage.getItem(
-          "authToken"
-        );
-
-      // =============================================
-      // USER ID / AGENT ID
-      // =============================================
-
-      const userId =
-        Number(loggedInUser?.id) || 0;
-
-      const agentId =
-        Number(loggedInUser?.agent_id) || 0;
-
-      // =============================================
-      // VALIDATE USER
-      // =============================================
-
-      if (!userId) {
-        Alert.alert(
-          "Login Required",
-          "Unable to identify the logged-in user."
-        );
-
-        return;
-      }
-
-      // =============================================
-      // CREATE PAYLOAD
-      // =============================================
-
-      const payload: ApplicationPayload = {
-        // =========================================
-        // USER
-        // =========================================
-
-        user_id: userId,
-
-        agent_id: agentId,
-
-        filled_by: userId,
-
-        // =========================================
-        // APPLICANT 1
-        // =========================================
-
-        applicant1_name:
-          applicant.firstName || "",
-
-        applicant1_pan:
-          applicant.panNumber || "",
-
-        applicant1_age:
-          calculateAge(
-            applicant.dob
-          ),
-
-        applicant1_dob:
-          convertDateForApi(
-            applicant.dob
-          ),
-
-        applicant1_guardian_name:
-          applicant.fatherGuardianName ||
-          "",
-
-        applicant1_address:
-          applicant.address || "",
-
-        applicant1_city:
-          applicant.city || "",
-
-        applicant1_pin_code:
-          applicant.pincode || "",
-
-        applicant1_office_no: "",
-
-        applicant1_res_no: "",
-
-        applicant1_mobile_no:
-          applicant.mobile || "",
-
-        applicant1_email:
-          applicant.email || "",
-
-        applicant1_residential_status:
-          applicant.residentialStatus ||
-          "Resident",
-
-        applicant1_nationality:
-          applicant.nationality || "",
-
-        applicant1_ward: "",
-
-        // =========================================
-        // APPLICANT 2
-        // =========================================
-
-        applicant2_name:
-          secondApplicant?.firstName ||
-          "",
-
-        applicant2_pan:
-          secondApplicant?.panNumber ||
-          "",
-
-        applicant2_age:
-          calculateAge(
-            secondApplicant?.dob || ""
-          ),
-
-        applicant2_dob:
-          convertDateForApi(
-            secondApplicant?.dob || ""
-          ),
-
-        applicant2_guardian_name:
-          secondApplicant
-            ?.fatherGuardianName ||
-          "",
-
-        applicant2_address:
-          secondApplicant?.address ||
-          "",
-
-        applicant2_city:
-          secondApplicant?.city || "",
-
-        applicant2_pin_code:
-          secondApplicant?.pincode ||
-          "",
-
-        applicant2_office_no: "",
-
-        applicant2_res_no: "",
-
-        applicant2_mobile_no:
-          secondApplicant?.mobile ||
-          "",
-
-        applicant2_email:
-          secondApplicant?.email || "",
-
-        applicant2_residential_status:
-          secondApplicant
-            ?.residentialStatus ||
-          "Resident",
-
-        applicant2_nationality:
-          secondApplicant?.nationality ||
-          "",
-
-        applicant2_ward: "",
-
-        // =========================================
-        // FLAT
-        // =========================================
-
-        block:
-          (flat as any)?.block || "",
-
-        tower:
-          (flat as any)?.tower || "",
-
-        flat_number:
-          flat?.flatNumber || "",
-
-        carpet_area:
-          Number(
-            flat?.carpetArea
-          ) || 0,
-
-        built_up_area:
-          Number(
-            flat?.builtUpArea
-          ) || 0,
-
-        super_built_up_area:
-          Number(
-            flat?.superBuiltUpArea
-          ) || 0,
-
-        rate_per_sqft:
-          Number(
-            flat?.ratePerSqft
-          ) || 0,
-
-        // =========================================
-        // FINANCIAL
-        // =========================================
-
-        payment_plan:
-          applicant.paymentPlan || "",
-
-        total_cost:
-          Number(
-            applicant.totalCost
-          ) || 0,
-
-        payment_source:
-          applicant.sourceOfPayment ||
-          "",
-
-        // =========================================
-        // BOOKING
-        // =========================================
-
-        booking_amount:
-          Number(
-            applicant.remittanceSum
-          ) || 0,
-
-        payment_method:
-          applicant.paymentMode ===
-            "Select mode..."
-            ? ""
-            : applicant.paymentMode,
-
-        instrument_number:
-          applicant.referenceNo || "",
-
-        payment_date:
-          convertDateForApi(
-            applicant.paymentDate
-          ),
-
-        mr_number: "",
-
-        mr_date: "",
-
-        bank_name:
-          applicant.drawnOn || "",
-
-        payable_at:
-          "Bhubaneswar",
-
-        // =========================================
-        // STATUS
-        // =========================================
-
-        is_submitted: 1,
-
-        is_approved: 0,
-
-        approved_by: 0,
-
-        rejection_reason: null,
-
-        // =========================================
-        // PDF
-        // =========================================
-
-        application_pdf: null,
-
-        approved_pdf: null,
-
-        rejected_pdf: null,
-      };
-
-      // =============================================
-      // LOG REQUEST
-      // =============================================
-
-      console.log(
-        "================================="
-      );
-
-      console.log(
-        "POST APPLICATION REQUEST"
-      );
-
-      console.log(
-        "URL:",
-        `${getBaseUrl()}/api/applications`
-      );
-
-      console.log(
-        "PAYLOAD:",
-        JSON.stringify(
-          payload,
-          null,
-          2
-        )
-      );
-
-      console.log(
-        "================================="
-      );
-
-      // =============================================
-      // POST API
-      // =============================================
-
-      const response =
-        await apiClient.post<ApplicationResponse>(
-          "/api/applications",
-          payload,
-          {
-            headers: {
-              ...(token
-                ? {
-                    Authorization:
-                      `Bearer ${token}`,
-                  }
-                : {}),
-            },
-
-            timeout: 20000,
-          }
-        );
-
-      // =============================================
-      // LOG RESPONSE
-      // =============================================
-
-      console.log(
-        "================================="
-      );
-
-      console.log(
-        "APPLICATION RESPONSE"
-      );
-
-      console.log(
-        JSON.stringify(
-          response.data,
-          null,
-          2
-        )
-      );
-
-      console.log(
-        "================================="
-      );
-
-      // =============================================
-      // SUCCESS
-      // =============================================
-
-      if (response.data?.success) {
-        Alert.alert(
-          "Application Submitted",
-          response.data?.message ||
-            "Application submitted successfully.",
-          [
-            {
-              text: "OK",
-              onPress: () => {
-                navigation.navigate(
-                  "Dashboard"
-                );
-              },
-            },
-          ]
-        );
-      } else {
-        Alert.alert(
-          "Submission Failed",
-          response.data?.message ||
-            "Unable to submit application."
-        );
-      }
-    } catch (error: any) {
-      console.log(
-        "================================="
-      );
-
-      console.log(
-        "APPLICATION SUBMIT ERROR"
-      );
-
-      console.log(error);
-
-      console.log(
-        "================================="
-      );
-
-      if (
-        isAxiosError(error)
-      ) {
-        console.log(
-          "Status:",
-          error.response?.status
-        );
-
-        console.log(
-          "Response:",
-          JSON.stringify(
-            error.response?.data,
-            null,
-            2
-          )
-        );
-
-        Alert.alert(
-          "Submission Error",
-          error.response?.data?.message ||
-            "Unable to submit application."
-        );
-      } else {
-        Alert.alert(
-          "Error",
-          error?.message ||
-            "Something went wrong."
-        );
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   // ===================================================
   // UI
@@ -864,16 +1103,23 @@ const ApplicantDetailsScreen = ({
           styles.scrollPadding
         }
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={
+          false
+        }
       >
-        <View style={styles.formContainer}>
+        <View
+          style={
+            styles.formContainer
+          }
+        >
+          {/* HEADER */}
 
-          {/* ========================================
-              HEADER
-          ======================================== */}
-
-          <View style={styles.pageHeader}>
-            <View style={styles.headerLeft}>
+          <View
+            style={styles.pageHeader}
+          >
+            <View
+              style={styles.headerLeft}
+            >
               <Text
                 style={
                   styles.pageTitleMain
@@ -899,11 +1145,11 @@ const ApplicantDetailsScreen = ({
             </View>
           </View>
 
-          <View style={styles.divider} />
+          <View
+            style={styles.divider}
+          />
 
-          {/* ========================================
-              01 GENERAL INFORMATION
-          ======================================== */}
+          {/* 01 GENERAL */}
 
           <SectionHeader
             number="01"
@@ -912,8 +1158,9 @@ const ApplicantDetailsScreen = ({
 
           <View style={styles.card}>
             <View style={styles.row}>
-
-              <View style={styles.flex}>
+              <View
+                style={styles.flex}
+              >
                 <Input
                   label="Application Number"
                   value="Auto Generate"
@@ -940,13 +1187,10 @@ const ApplicantDetailsScreen = ({
                   editable={false}
                 />
               </View>
-
             </View>
           </View>
 
-          {/* ========================================
-              02 APPLICANT DETAILS
-          ======================================== */}
+          {/* 02 APPLICANT */}
 
           <SectionHeader
             number="02"
@@ -954,7 +1198,6 @@ const ApplicantDetailsScreen = ({
           />
 
           <View style={styles.card}>
-
             <Input
               label="Name of the applicant"
               required
@@ -1006,12 +1249,9 @@ const ApplicantDetailsScreen = ({
                 )
               }
             />
-
           </View>
 
-          {/* ========================================
-              03 CONTACT & IDENTIFICATION
-          ======================================== */}
+          {/* 03 CONTACT */}
 
           <SectionHeader
             number="03"
@@ -1019,7 +1259,6 @@ const ApplicantDetailsScreen = ({
           />
 
           <View style={styles.card}>
-
             <Input
               label="Address for Correspondence"
               required
@@ -1039,8 +1278,9 @@ const ApplicantDetailsScreen = ({
             />
 
             <View style={styles.row}>
-
-              <View style={styles.flex}>
+              <View
+                style={styles.flex}
+              >
                 <Input
                   label="Mob. No."
                   required
@@ -1090,12 +1330,11 @@ const ApplicantDetailsScreen = ({
                   }
                 />
               </View>
-
             </View>
 
-            {/* RESIDENTIAL STATUS */}
-
-            <Text style={styles.label}>
+            <Text
+              style={styles.label}
+            >
               Residential Status{" "}
               <Text
                 style={
@@ -1111,7 +1350,6 @@ const ApplicantDetailsScreen = ({
                 styles.radioContainer
               }
             >
-
               <TouchableOpacity
                 style={
                   styles.radioOption
@@ -1187,14 +1425,12 @@ const ApplicantDetailsScreen = ({
                   Non-Resident
                 </Text>
               </TouchableOpacity>
-
             </View>
 
-            {/* NATIONALITY + PAN */}
-
             <View style={styles.row}>
-
-              <View style={styles.flex}>
+              <View
+                style={styles.flex}
+              >
                 <Input
                   label="Nationality"
                   required
@@ -1241,14 +1477,10 @@ const ApplicantDetailsScreen = ({
                   }
                 />
               </View>
-
             </View>
-
           </View>
 
-          {/* ========================================
-              04 FLAT DETAILS
-          ======================================== */}
+          {/* 04 FLAT */}
 
           <SectionHeader
             number="04"
@@ -1261,10 +1493,10 @@ const ApplicantDetailsScreen = ({
               styles.cardBlue,
             ]}
           >
-
             <View style={styles.row}>
-
-              <View style={styles.flex}>
+              <View
+                style={styles.flex}
+              >
                 <Input
                   label="Flat No."
                   required
@@ -1297,12 +1529,12 @@ const ApplicantDetailsScreen = ({
                   onChangeText={() => {}}
                 />
               </View>
-
             </View>
 
             <View style={styles.row}>
-
-              <View style={styles.flex}>
+              <View
+                style={styles.flex}
+              >
                 <Input
                   label="Built Up Area"
                   required
@@ -1336,7 +1568,6 @@ const ApplicantDetailsScreen = ({
                   onChangeText={() => {}}
                 />
               </View>
-
             </View>
 
             <Input
@@ -1350,12 +1581,9 @@ const ApplicantDetailsScreen = ({
               editable={false}
               onChangeText={() => {}}
             />
-
           </View>
 
-          {/* ========================================
-              05 FINANCIAL DETAILS
-          ======================================== */}
+          {/* 05 FINANCIAL */}
 
           <SectionHeader
             number="05"
@@ -1363,13 +1591,13 @@ const ApplicantDetailsScreen = ({
           />
 
           <View style={styles.card}>
-
-            <Text style={styles.label}>
+            <Text
+              style={styles.label}
+            >
               Payment Plan Opted For
             </Text>
 
             <View style={styles.row}>
-
               <BoxRadio
                 label="Down Payment"
                 selected={
@@ -1403,19 +1631,17 @@ const ApplicantDetailsScreen = ({
                   )
                 }
               />
-
             </View>
-
           </View>
 
           <View style={styles.card}>
-
-            <Text style={styles.label}>
+            <Text
+              style={styles.label}
+            >
               Source of Payment
             </Text>
 
             <View style={styles.row}>
-
               <BoxRadio
                 label="Self"
                 selected={
@@ -1449,13 +1675,10 @@ const ApplicantDetailsScreen = ({
                   )
                 }
               />
-
             </View>
-
           </View>
 
           <View style={styles.card}>
-
             <Input
               label="Total Cost: Rupees"
               required
@@ -1477,12 +1700,9 @@ const ApplicantDetailsScreen = ({
                 )
               }
             />
-
           </View>
 
-          {/* ========================================
-              06 BOOKING AMOUNT
-          ======================================== */}
+          {/* 06 BOOKING */}
 
           <SectionHeader
             number="06"
@@ -1490,11 +1710,10 @@ const ApplicantDetailsScreen = ({
           />
 
           <View style={styles.card}>
-
             <View style={styles.row}>
-
-              <View style={styles.flex}>
-
+              <View
+                style={styles.flex}
+              >
                 <Input
                   label="REMITTANCE SUM (RS.)"
                   required
@@ -1516,7 +1735,6 @@ const ApplicantDetailsScreen = ({
                     )
                   }
                 />
-
               </View>
 
               <View
@@ -1527,13 +1745,11 @@ const ApplicantDetailsScreen = ({
                   },
                 ]}
               >
-
                 <View
                   style={
                     styles.inputOuterContainer
                   }
                 >
-
                   <Text
                     style={styles.label}
                   >
@@ -1558,7 +1774,6 @@ const ApplicantDetailsScreen = ({
                       )
                     }
                   >
-
                     <Text
                       style={[
                         styles.input,
@@ -1581,21 +1796,15 @@ const ApplicantDetailsScreen = ({
                     >
                       ▼
                     </Text>
-
                   </TouchableOpacity>
-
                 </View>
-
               </View>
-
             </View>
 
-            {/* REFERENCE + DATE */}
-
             <View style={styles.row}>
-
-              <View style={styles.flex}>
-
+              <View
+                style={styles.flex}
+              >
                 <Input
                   label="REFERENCE NO."
                   required={
@@ -1614,7 +1823,6 @@ const ApplicantDetailsScreen = ({
                     )
                   }
                 />
-
               </View>
 
               <View
@@ -1625,7 +1833,6 @@ const ApplicantDetailsScreen = ({
                   },
                 ]}
               >
-
                 <DateInput
                   label="DATE"
                   required
@@ -1641,9 +1848,7 @@ const ApplicantDetailsScreen = ({
                     )
                   }
                 />
-
               </View>
-
             </View>
 
             <Input
@@ -1665,21 +1870,16 @@ const ApplicantDetailsScreen = ({
               }
             />
 
-            {/* INFO */}
-
             <View
               style={styles.infoBanner}
             >
-
               <View
                 style={
                   styles.infoIconWrapper
                 }
               >
                 <Text
-                  style={
-                    styles.infoIcon
-                  }
+                  style={styles.infoIcon}
                 >
                   i
                 </Text>
@@ -1701,16 +1901,14 @@ const ApplicantDetailsScreen = ({
                 However, cheque shall be
                 subject to realization.
               </Text>
-
             </View>
-
           </View>
 
-          <View style={styles.divider} />
+          <View
+            style={styles.divider}
+          />
 
-          {/* ========================================
-              TERMS
-          ======================================== */}
+          {/* TERMS */}
 
           <TouchableOpacity
             style={
@@ -1723,7 +1921,6 @@ const ApplicantDetailsScreen = ({
               )
             }
           >
-
             <View
               style={[
                 styles.checkbox,
@@ -1731,7 +1928,6 @@ const ApplicantDetailsScreen = ({
                   styles.checkboxSelected,
               ]}
             >
-
               {acceptedTerms && (
                 <Text
                   style={
@@ -1741,7 +1937,6 @@ const ApplicantDetailsScreen = ({
                   ✓
                 </Text>
               )}
-
             </View>
 
             <Text
@@ -1757,19 +1952,15 @@ const ApplicantDetailsScreen = ({
               material fact has been concealed
               there from.
             </Text>
-
           </TouchableOpacity>
 
-          {/* ========================================
-              ACTION BUTTONS
-          ======================================== */}
+          {/* ACTION BUTTONS */}
 
           <View
             style={
               styles.actionContainer
             }
           >
-
             <TouchableOpacity
               style={
                 styles.resetButton
@@ -1793,33 +1984,46 @@ const ApplicantDetailsScreen = ({
                   styles.primaryButton
                 }
                 activeOpacity={0.8}
-                onPress={handleContinue}
+                onPress={
+                  handleContinue
+                }
                 disabled={submitting}
               >
                 {submitting ? (
-                  <ActivityIndicator
-                    color="#FFFFFF"
-                  />
+                  <View
+                    style={
+                      styles.buttonLoading
+                    }
+                  >
+                    <ActivityIndicator
+                      color="#FFFFFF"
+                      size="small"
+                    />
+
+                    <Text
+                      style={
+                        styles.primaryButtonText
+                      }
+                    >
+                      Submitting...
+                    </Text>
+                  </View>
                 ) : (
                   <Text
                     style={
                       styles.primaryButtonText
                     }
                   >
-                    Continue
+                    Submit Application
                   </Text>
                 )}
               </TouchableOpacity>
             )}
-
           </View>
-
         </View>
       </ScrollView>
 
-      {/* ==========================================
-          PAYMENT MODE MODAL
-      ========================================== */}
+      {/* PAYMENT MODE MODAL */}
 
       <Modal
         visible={
@@ -1828,7 +2032,6 @@ const ApplicantDetailsScreen = ({
         transparent
         animationType="fade"
       >
-
         <TouchableOpacity
           style={
             styles.modalOverlay
@@ -1840,13 +2043,11 @@ const ApplicantDetailsScreen = ({
             )
           }
         >
-
           <View
             style={
               styles.modalContent
             }
           >
-
             <Text
               style={
                 styles.modalHeader
@@ -1888,7 +2089,6 @@ const ApplicantDetailsScreen = ({
                     );
                   }}
                 >
-
                   <Text
                     style={[
                       styles.modalOptionText,
@@ -1899,15 +2099,11 @@ const ApplicantDetailsScreen = ({
                   >
                     {mode}
                   </Text>
-
                 </TouchableOpacity>
               )
             )}
-
           </View>
-
         </TouchableOpacity>
-
       </Modal>
     </KeyboardAvoidingView>
   );
@@ -1931,7 +2127,6 @@ const Input = ({
         styles.inputOuterContainer
       }
     >
-
       <Text style={styles.label}>
         {label}{" "}
         {required && (
@@ -1954,7 +2149,6 @@ const Input = ({
             styles.disabledInputWrapper,
         ]}
       >
-
         {prefix && (
           <Text
             style={
@@ -1985,7 +2179,6 @@ const Input = ({
             {suffix}
           </Text>
         )}
-
       </View>
     </View>
   );
@@ -2063,8 +2256,7 @@ const DateInput = ({
       );
 
       if (
-        Platform.OS ===
-        "ios"
+        Platform.OS === "ios"
       ) {
         setShow(false);
       }
@@ -2082,7 +2274,6 @@ const DateInput = ({
         styles.inputOuterContainer
       }
     >
-
       <Text style={styles.label}>
         {label}{" "}
         {required && (
@@ -2105,7 +2296,6 @@ const DateInput = ({
           setShow(true)
         }
       >
-
         <Text
           style={[
             styles.input,
@@ -2126,7 +2316,6 @@ const DateInput = ({
         >
           📅
         </Text>
-
       </TouchableOpacity>
 
       {show && (
@@ -2142,7 +2331,6 @@ const DateInput = ({
           onChange={onChange}
         />
       )}
-
     </View>
   );
 };
@@ -2170,7 +2358,6 @@ const BoxRadio = ({
           styles.boxRadioContainerSelected,
       ]}
     >
-
       <View
         style={[
           styles.radioCircle,
@@ -2194,7 +2381,6 @@ const BoxRadio = ({
       >
         {label}
       </Text>
-
     </TouchableOpacity>
   );
 };
@@ -2237,6 +2423,7 @@ const styles = StyleSheet.create({
 
     shadowOpacity: 0.05,
     shadowRadius: 10,
+
     elevation: 2,
   },
 
@@ -2607,7 +2794,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 100,
+    minWidth: 170,
     minHeight: 46,
   },
 
@@ -2615,6 +2802,13 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "700",
+  },
+
+  buttonLoading: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
   },
 });
 
