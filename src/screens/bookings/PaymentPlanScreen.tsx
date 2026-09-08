@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ScrollView,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../types/navigation";
@@ -24,11 +25,13 @@ const PaymentPlanScreen = ({
     flat,
     applicant,
     secondApplicant,
-  } = route.params;
+    applicationId,
+    applicationNumber,
+  } = (route.params as any) || {};
 
   const [plan, setPlan] =
     useState<"Down Payment" | "Installment Plan">(
-      "Installment Plan"
+      applicant?.paymentPlan === "Down Payment" ? "Down Payment" : "Installment Plan"
     );
 
   const [selectedMilestones, setSelectedMilestones] = useState<
@@ -63,6 +66,49 @@ const PaymentPlanScreen = ({
     ["Possession", "5%"],
   ];
 
+  const handleSelectPlan = async (selectedPlan: "Down Payment" | "Installment Plan") => {
+    setPlan(selectedPlan);
+    try {
+      const cached = await AsyncStorage.getItem("@latest_booking_application");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        parsed.paymentPlan = selectedPlan;
+        if (parsed.applicant) parsed.applicant.paymentPlan = selectedPlan;
+        await AsyncStorage.setItem("@latest_booking_application", JSON.stringify(parsed));
+      }
+    } catch (_) {}
+  };
+
+  const proceedToPayment = async () => {
+    await handleSelectPlan(plan);
+    navigation.navigate("BookingAmount", {
+      flat,
+      applicant: {
+        ...applicant,
+        paymentPlan: plan,
+      },
+      secondApplicant,
+      paymentPlan: plan,
+      applicationId,
+      applicationNumber,
+    });
+  };
+
+  const proceedToSummary = async () => {
+    await handleSelectPlan(plan);
+    navigation.navigate("BookingSummary", {
+      flat,
+      applicant: {
+        ...applicant,
+        paymentPlan: plan,
+      },
+      secondApplicant,
+      paymentPlan: plan,
+      applicationId,
+      applicationNumber,
+    });
+  };
+
   return (
     <ScrollView style={styles.container}>
 
@@ -80,7 +126,7 @@ const PaymentPlanScreen = ({
           plan === "Down Payment" &&
             styles.active,
         ]}
-        onPress={() => setPlan("Down Payment")}
+        onPress={() => handleSelectPlan("Down Payment")}
       >
         <Text style={styles.cardTitle}>
           Down Payment
@@ -101,9 +147,7 @@ const PaymentPlanScreen = ({
           plan === "Installment Plan" &&
             styles.active,
         ]}
-        onPress={() =>
-          setPlan("Installment Plan")
-        }
+        onPress={() => handleSelectPlan("Installment Plan")}
       >
         <Text style={styles.cardTitle}>
           Installment Plan
@@ -158,19 +202,23 @@ const PaymentPlanScreen = ({
 
       <TouchableOpacity
         style={styles.button}
-        onPress={() =>
-          navigation.navigate("BookingSummary", {
-            flat,
-            applicant,
-            secondApplicant,
-            paymentPlan: plan,
-          })
-        }
+        onPress={proceedToPayment}
       >
         <Text style={styles.buttonText}>
-          CONTINUE
+          PROCEED TO PAYMENT
         </Text>
       </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.secondaryButton}
+        onPress={proceedToSummary}
+      >
+        <Text style={styles.secondaryButtonText}>
+          VIEW BOOKING SUMMARY
+        </Text>
+      </TouchableOpacity>
+
+      <View style={{ height: 40 }} />
 
     </ScrollView>
   );
@@ -220,35 +268,34 @@ const styles = StyleSheet.create({
   },
 
   radio: {
-    position: "absolute",
-    right: 20,
-    top: 20,
+    marginTop: 10,
+    fontSize: 18,
     color: "#2563EB",
-    fontSize: 20,
   },
 
   scheduleTitle: {
     fontSize: 20,
     fontWeight: "700",
-    marginTop: 15,
-    marginBottom: 10,
+    marginTop: 20,
+    marginBottom: 15,
   },
 
   schedule: {
     backgroundColor: "#FFF",
-    padding: 15,
-    marginBottom: 7,
-    borderRadius: 9,
+    padding: 16,
+    borderRadius: 10,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
 
   scheduleName: {
+    fontWeight: "600",
+    color: "#374151",
     flex: 1,
-    fontSize: 15,
-    color: "#1F2937",
-    fontWeight: "500",
   },
 
   scheduleRight: {
@@ -292,12 +339,31 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    marginVertical: 25,
+    marginTop: 25,
+    marginBottom: 12,
   },
 
   buttonText: {
     color: "#FFF",
     fontWeight: "800",
+    fontSize: 15,
+  },
+
+  secondaryButton: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#2563EB",
+    height: 52,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 15,
+  },
+
+  secondaryButtonText: {
+    color: "#2563EB",
+    fontWeight: "700",
+    fontSize: 14,
   },
 });
 

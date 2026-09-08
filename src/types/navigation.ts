@@ -38,6 +38,8 @@ export type RootStackParamList = {
     flat: FlatData;
     applicant: ApplicantData;
     secondApplicant?: ApplicantData;
+    applicationId?: number;
+    applicationNumber?: string;
   };
 
   BookingSummary:

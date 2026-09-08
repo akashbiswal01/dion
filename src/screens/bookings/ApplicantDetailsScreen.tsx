@@ -929,18 +929,17 @@ const ApplicantDetailsScreen = ({
         Alert.alert(
           "Application Submitted",
           response.data.message ||
-            "Application submitted successfully. Please proceed to payment to confirm your booking.",
+            "Application submitted successfully. Please select your payment plan to proceed.",
           [
             {
-              text: "View Summary",
+              text: "Select Payment Plan",
               onPress: () => {
                 navigation.navigate(
-                  "BookingSummary",
+                  "PaymentPlan",
                   {
                     flat,
                     applicant,
                     secondApplicant: undefined,
-                    paymentPlan: applicant.paymentPlan,
                     applicationId: createdAppId,
                     applicationNumber: createdAppNumber,
                   }
@@ -948,10 +947,10 @@ const ApplicantDetailsScreen = ({
               },
             },
             {
-              text: "Proceed to Payment",
+              text: "View Summary",
               onPress: () => {
                 navigation.navigate(
-                  "BookingAmount",
+                  "BookingSummary",
                   {
                     flat,
                     applicant,
@@ -2014,7 +2013,7 @@ const ApplicantDetailsScreen = ({
                       styles.primaryButtonText
                     }
                   >
-                    Submit Application
+                    Submit & Choose Payment Plan
                   </Text>
                 )}
               </TouchableOpacity>
