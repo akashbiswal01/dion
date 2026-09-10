@@ -289,7 +289,7 @@ const LoginScreen = ({ navigation }: Props) => {
         await apiClient.post<LoginResponse>(
           "/api/auth/login",
           {
-            role: "user",
+            role: "agent",
             identifier: identifier,
             password: password,
           },
@@ -620,10 +620,10 @@ const LoginScreen = ({ navigation }: Props) => {
           ================================================== */}
 
           <AnimatedInput
-            label="Mobile Number"
+            label="Email"
             icon="📱"
-            placeholder="Enter your mobile number"
-            keyboardType="phone-pad"
+            placeholder="Enter your email"
+            keyboardType="email-address"
             maxLength={10}
             value={mobile}
             onChangeText={(text: string) => {
