@@ -2,7 +2,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const API_BASE_URL_KEY = '@api_base_url';
-export const DEFAULT_BASE_URL = 'http://192.168.1.99:5000'; // Default for Android emulator
+export const DEFAULT_BASE_URL = 'https://regn.diongroup.in'; // Default for Android emulator
 
 export const apiClient = axios.create({
   baseURL: DEFAULT_BASE_URL,

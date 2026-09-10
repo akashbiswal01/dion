@@ -140,12 +140,9 @@ const LoginScreen = ({ navigation }: Props) => {
   // STATES
   // ====================================================
 
-  const [mobile, setMobile] = useState("");
-  const [password, setPassword] = useState("");
-
-  const [loading, setLoading] = useState(false);
-  
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
 
   // ====================================================
@@ -165,19 +162,19 @@ const LoginScreen = ({ navigation }: Props) => {
   // ====================================================
 
   useEffect(() => {
-    // Load last used mobile number
-    const loadSavedMobile = async () => {
+    const loadSavedEmail = async () => {
       try {
-        const saved = await AsyncStorage.getItem("loginMobile");
+        const saved = await AsyncStorage.getItem("loginEmail");
+
         if (saved) {
-          setMobile(saved);
+          setEmail(saved);
         }
       } catch (e) {
         // Ignore storage read error
       }
     };
 
-    loadSavedMobile();
+    loadSavedEmail();
 
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -200,68 +197,32 @@ const LoginScreen = ({ navigation }: Props) => {
   // ====================================================
 
   const handleLogin = async () => {
+    const identifier = email.trim().toLowerCase();
 
-    // Remove spaces
-    const identifier = mobile.trim();
-
-    // ==================================================
-    // MOBILE VALIDATION
-    // ==================================================
-
+    // EMAIL VALIDATION
     if (!identifier) {
-      Alert.alert(
-        "Login",
-        "Please enter your mobile number."
-      );
-
+      Alert.alert("Login", "Please enter your email address.");
       return;
     }
 
-    // Only numbers
-    if (!/^[0-9]+$/.test(identifier)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)) {
       Alert.alert(
-        "Invalid Mobile Number",
-        "Mobile number can contain only numbers."
+        "Invalid Email",
+        "Please enter a valid email address."
       );
-
       return;
     }
 
-    // 10 digit validation
-    if (identifier.length !== 10) {
-      Alert.alert(
-        "Invalid Mobile Number",
-        "Please enter a valid 10-digit mobile number."
-      );
-
-      return;
-    }
-
-    // ==================================================
     // PASSWORD VALIDATION
-    // ==================================================
-
     if (!password.trim()) {
-      Alert.alert(
-        "Login",
-        "Please enter your password."
-      );
-
+      Alert.alert("Login", "Please enter your password.");
       return;
     }
 
     try {
-
       setLoading(true);
 
-      // =================================================
-      // LOG REQUEST
-      // =================================================
-
-      console.log(
-        "================================="
-      );
-
+      console.log("=================================");
       console.log("LOGIN REQUEST");
 
       console.log(
@@ -273,126 +234,82 @@ const LoginScreen = ({ navigation }: Props) => {
         "Request:",
         JSON.stringify(
           {
-            role: "user",
-            identifier: identifier,
-            password: password,
-          },
-          null,
-          2
-        )
-      );
-
-      console.log(
-        "================================="
-      );
-
-      // =================================================
-      // API CALL
-      // =================================================
-
-      const response =
-        await apiClient.post<LoginResponse>(
-          "/api/auth/login",
-          {
             role: "agent",
             identifier: identifier,
             password: password,
           },
-          {
-            timeout: 15000,
-          }
-        );
-
-      // =================================================
-      // RESPONSE
-      // =================================================
-
-      console.log(
-        "================================="
-      );
-
-      console.log("LOGIN RESPONSE");
-
-      console.log(
-        JSON.stringify(
-          response.data,
           null,
           2
         )
       );
 
-      console.log(
-        "================================="
+      console.log("=================================");
+
+      // API CALL
+      const response = await apiClient.post<LoginResponse>(
+        "/api/auth/login",
+        {
+          role: "agent",
+          identifier: identifier,
+          password: password,
+        },
+        {
+          timeout: 15000,
+        }
       );
+
+      console.log("=================================");
+      console.log("LOGIN RESPONSE");
+      console.log(
+        JSON.stringify(response.data, null, 2)
+      );
+      console.log("=================================");
 
       const result = response.data;
 
-      // =================================================
       // CHECK SUCCESS
-      // =================================================
-
       if (result.success === false) {
-
         Alert.alert(
           "Login Failed",
-          result.message ||
-          "Invalid mobile number or password."
+          result.message || "Invalid email or password."
         );
-
         return;
       }
 
-      // =================================================
       // GET TOKEN
-      // =================================================
-
       const token =
         result.token ||
         result.access_token ||
         result.data?.token ||
         result.data?.access_token;
 
-      // =================================================
       // SAVE TOKEN
-      // =================================================
-
       if (token) {
-
         await AsyncStorage.setItem(
           "authToken",
           token
         );
 
-        console.log(
-          "Auth token saved successfully."
-        );
+        console.log("Auth token saved successfully.");
       }
 
-      // =================================================
       // SAVE USER DATA
-      // =================================================
-
       if (result.data) {
-
         await AsyncStorage.setItem(
           "userData",
           JSON.stringify(result.data)
         );
 
-        console.log(
-          "User data saved successfully."
-        );
+        console.log("User data saved successfully.");
       }
 
-      // =================================================
-      // SAVE MOBILE & LOGIN TIMESTAMP (FOR 1 MONTH REMEMBER ME)
-      // =================================================
-
+      // SAVE EMAIL
       await AsyncStorage.setItem(
-        "loginMobile",
+        "loginEmail",
         identifier
       );
 
+      // SAVE LOGIN TIME
       await AsyncStorage.setItem(
         "loginTime",
         Date.now().toString()
@@ -402,41 +319,17 @@ const LoginScreen = ({ navigation }: Props) => {
         "Login session saved. Navigating directly to Dashboard."
       );
 
-      // =================================================
-      // DIRECT NAVIGATE TO DASHBOARD
-      // =================================================
-
-      navigation.replace(
-        "Dashboard" as any
-      );
+      // NAVIGATE
+      navigation.replace("Dashboard" as any);
 
     } catch (error: any) {
 
-      // =================================================
-      // ERROR LOG
-      // =================================================
-
-      console.log(
-        "================================="
-      );
-
+      console.log("=================================");
       console.log("LOGIN ERROR");
-
       console.log(error);
-
-      console.log(
-        "================================="
-      );
-
-      // =================================================
-      // AXIOS ERROR
-      // =================================================
+      console.log("=================================");
 
       if (isAxiosError(error)) {
-
-        // ===============================================
-        // SERVER RESPONSE ERROR
-        // ===============================================
 
         if (error.response) {
 
@@ -457,19 +350,14 @@ const LoginScreen = ({ navigation }: Props) => {
           const serverMessage =
             error.response.data?.message ||
             error.response.data?.error ||
-            "Invalid mobile number or password.";
+            "Invalid email or password.";
 
           Alert.alert(
             "Login Failed",
             serverMessage
           );
-        }
 
-        // ===============================================
-        // NETWORK ERROR
-        // ===============================================
-
-        else if (error.request) {
+        } else if (error.request) {
 
           console.log(
             "No response received from server."
@@ -479,13 +367,8 @@ const LoginScreen = ({ navigation }: Props) => {
             "Server Error",
             "Unable to connect to the server. Please check your API URL and network connection."
           );
-        }
 
-        // ===============================================
-        // OTHER AXIOS ERROR
-        // ===============================================
-
-        else {
+        } else {
 
           Alert.alert(
             "Login Error",
@@ -496,10 +379,6 @@ const LoginScreen = ({ navigation }: Props) => {
 
       } else {
 
-        // ===============================================
-        // UNKNOWN ERROR
-        // ===============================================
-
         Alert.alert(
           "Login Error",
           "Something went wrong. Please try again."
@@ -507,9 +386,7 @@ const LoginScreen = ({ navigation }: Props) => {
       }
 
     } finally {
-
       setLoading(false);
-
     }
   };
 

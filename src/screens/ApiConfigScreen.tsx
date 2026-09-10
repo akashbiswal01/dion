@@ -73,7 +73,7 @@ const ApiConfigScreen = () => {
           style={styles.input}
           value={url}
           onChangeText={setUrl}
-          placeholder="e.g. http://192.168.1.99:5000"
+          placeholder="e.g. https://regn.diongroup.in"
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="url"
@@ -81,7 +81,7 @@ const ApiConfigScreen = () => {
 
         <Text style={styles.helpText}>
           Configure the API endpoint your application connects to.
-          Use 'http://192.168.1.99:5000' for Android Emulator connecting to local server.
+          Use 'https://regn.diongroup.in' for Android Emulator connecting to local server.
         </Text>
 
         <View style={styles.buttonContainer}>
