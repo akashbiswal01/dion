@@ -20,6 +20,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../types/navigation";
 import Icon from "react-native-vector-icons/Ionicons";
 
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiClient, getBaseUrl, isAxiosError } from "../api/client";
 
@@ -128,6 +129,7 @@ const AnimatedInput = ({
   );
 };
 
+
 // ======================================================
 // LOGIN SCREEN
 // ======================================================
@@ -142,6 +144,9 @@ const LoginScreen = ({ navigation }: Props) => {
   const [password, setPassword] = useState("");
 
   const [loading, setLoading] = useState(false);
+  
+  const [email, setEmail] = useState("");
+
 
   // ====================================================
   // ANIMATION
@@ -331,7 +336,7 @@ const LoginScreen = ({ navigation }: Props) => {
         Alert.alert(
           "Login Failed",
           result.message ||
-            "Invalid mobile number or password."
+          "Invalid mobile number or password."
         );
 
         return;
@@ -485,7 +490,7 @@ const LoginScreen = ({ navigation }: Props) => {
           Alert.alert(
             "Login Error",
             error.message ||
-              "Something went wrong."
+            "Something went wrong."
           );
         }
 
@@ -618,31 +623,19 @@ const LoginScreen = ({ navigation }: Props) => {
           {/* ==================================================
               MOBILE NUMBER
           ================================================== */}
-
           <AnimatedInput
             label="Email"
-            icon="📱"
+            icon="✉️"
             placeholder="Enter your email"
             keyboardType="email-address"
-            maxLength={10}
-            value={mobile}
+            autoCapitalize="none"
+            autoCorrect={false}
+            value={email}
             onChangeText={(text: string) => {
-
-              // Only allow numbers
-
-              const numericValue =
-                text.replace(
-                  /[^0-9]/g,
-                  ""
-                );
-
-              setMobile(
-                numericValue
-              );
+              setEmail(text);
             }}
             editable={!loading}
           />
-
           {/* ==================================================
               PASSWORD
           ================================================== */}
@@ -699,7 +692,7 @@ const LoginScreen = ({ navigation }: Props) => {
             style={[
               styles.button,
               loading &&
-                styles.buttonDisabled,
+              styles.buttonDisabled,
             ]}
             activeOpacity={0.8}
             onPress={handleLogin}
